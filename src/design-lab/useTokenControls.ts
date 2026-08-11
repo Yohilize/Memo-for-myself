@@ -24,16 +24,16 @@ export interface TokenState {
 }
 
 const defaults: TokenState = {
-  glassBlur: 20,
-  glassOpacity: 6,
+  glassBlur: 16,
+  glassOpacity: 55,
   glassRadius: 20,
-  bgMaskOpacity: 0.3,
+  bgMaskOpacity: 0,
   bgImageOpacity: 0.4,
-  orbOpacity: 0.5,
+  orbOpacity: 0.35,
   appWidth: 66,
-  primaryColor: '#a855f7',
-  accentColor: '#3b82f6',
-  accent2Color: '#ec4899',
+  primaryColor: '#b8866d',
+  accentColor: '#8ba888',
+  accent2Color: '#d4a574',
 }
 
 const STORAGE_KEY = 'mymemo-design-lab-tokens'
@@ -81,10 +81,14 @@ function applyTokens(s: TokenState) {
   )
   root.style.setProperty(
     '--bg-gradient',
-    `radial-gradient(ellipse at 20% 20%, ${hexToRgba(s.primaryColor, 0.25)} 0%, transparent 50%),` +
-      `radial-gradient(ellipse at 80% 30%, ${hexToRgba(s.accentColor, 0.2)} 0%, transparent 50%),` +
-      `radial-gradient(ellipse at 50% 80%, ${hexToRgba(s.accent2Color, 0.18)} 0%, transparent 50%),` +
-      'linear-gradient(135deg, #1a1033 0%, #0f0f1a 50%, #1a1a2e 100%)',
+    `radial-gradient(ellipse at 20% 15%, ${hexToRgba(s.primaryColor, 0.18)} 0%, transparent 50%),` +
+      `radial-gradient(ellipse at 80% 25%, ${hexToRgba(s.accentColor, 0.15)} 0%, transparent 50%),` +
+      `radial-gradient(ellipse at 50% 85%, ${hexToRgba(s.accent2Color, 0.12)} 0%, transparent 50%),` +
+      'linear-gradient(160deg, #fdf8f2 0%, #f7f0e8 45%, #f2ebe2 100%)',
+  )
+  root.style.setProperty(
+    '--gradient-text',
+    `linear-gradient(135deg, ${s.primaryColor}, ${s.accentColor})`,
   )
 }
 

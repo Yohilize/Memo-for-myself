@@ -82,7 +82,7 @@ function onInput(e: Event) {
   border-radius: 50%;
   background: var(--color-primary);
   border: 2px solid white;
-  box-shadow: 0 2px 8px rgba(168, 85, 247, 0.4);
+  box-shadow: 0 2px 8px rgba(184, 134, 109, 0.3);
   cursor: pointer;
   transition: transform var(--duration-fast) var(--ease-out);
 }
@@ -97,7 +97,7 @@ function onInput(e: Event) {
   border-radius: 50%;
   background: var(--color-primary);
   border: 2px solid white;
-  box-shadow: 0 2px 8px rgba(168, 85, 247, 0.4);
+  box-shadow: 0 2px 8px rgba(184, 134, 109, 0.3);
   cursor: pointer;
 }
 </style>

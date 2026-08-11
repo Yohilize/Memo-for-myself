@@ -63,11 +63,11 @@ withDefaults(defineProps<Props>(), {
 .variant-primary {
   background: var(--gradient-primary);
   color: white;
-  box-shadow: 0 4px 16px rgba(168, 85, 247, 0.3);
+  box-shadow: 0 4px 16px rgba(184, 134, 109, 0.25);
 }
 
 .variant-primary:hover:not(:disabled) {
-  box-shadow: 0 6px 20px rgba(168, 85, 247, 0.45);
+  box-shadow: 0 6px 20px rgba(184, 134, 109, 0.35);
   transform: translateY(-1px);
 }
 

@@ -21,7 +21,7 @@ MYMEMO 是一款面向个人长期使用的时间管理工具。
 为了提升长期使用体验，采用具有个人审美倾向的视觉设计：
 
 - Glassmorphism（玻璃拟态）
-- Soft Gradient（柔和渐变~~~~）
+- Soft Gradient（柔和渐变）
 - Anime-inspired aesthetic（日系二次元美学倾向）
 - Personal Dashboard / Floating Panel（个人面板 / 悬浮容器）
 
@@ -88,15 +88,52 @@ src/
 └── views/            # 页面
 ```
 
-## 开发
+## 本地开发
+
+### 环境要求
+
+- Node.js 18+
+- npm
+
+### 启动
 
 ```bash
 npm install
-npm run dev          # 开发服务器
-npm run type-check   # 类型检查
+npm run dev
+```
+
+默认访问 http://localhost:5173/
+
+### 可用脚本
+
+```bash
+npm run dev          # 启动开发服务器（HMR）
+npm run type-check   # TypeScript 类型检查
 npm run build        # 生产构建
 npm run preview      # 预览构建产物
 ```
+
+### 页面入口
+
+| 路径 | 说明 |
+|------|------|
+| `/` | MYMEMO 主应用 |
+| `/playground` | Design Lab（设计实验室） |
+| `/data-test` | Phase 1 数据持久化验证页（临时） |
+
+### Design Lab 说明
+
+Design Lab（`/playground`）是**开发辅助工具**，不属于最终用户功能。
+
+用途：
+
+- 调整 Design Token（玻璃模糊、透明度、圆角、配色等）
+- 实时预览背景效果和组件视觉
+- 上传壁纸测试背景层效果
+- 验证基础组件在不同参数下的表现
+- 导出 CSS 变量供开发参考
+
+Design Lab 中修改的参数保存在浏览器 localStorage 中，仅影响当前开发者的浏览器，不会写入代码或影响其他环境。它独立于业务逻辑，位于 `src/design-lab/`。
 
 ## 开发路线
 

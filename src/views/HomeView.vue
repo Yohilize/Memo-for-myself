@@ -77,7 +77,7 @@ import BaseButton from '@/components/base/BaseButton.vue'
   font-size: 36px;
   font-weight: var(--font-bold);
   color: white;
-  box-shadow: 0 8px 24px rgba(168, 85, 247, 0.35);
+  box-shadow: 0 8px 24px rgba(184, 134, 109, 0.30);
 }
 
 .title {

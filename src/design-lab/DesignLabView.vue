@@ -12,11 +12,11 @@ const { state, resetTokens, setWallpaper } = useTokenControls()
 const activeTab = ref<'tokens' | 'components'>('tokens')
 
 const presetColors = [
-  { name: '紫蓝粉', p: '#a855f7', a: '#3b82f6', a2: '#ec4899' },
-  { name: '海洋蓝', p: '#06b6d4', a: '#3b82f6', a2: '#8b5cf6' },
-  { name: '樱花粉', p: '#ec4899', a: '#f472b6', a2: '#f59e0b' },
-  { name: '森林绿', p: '#10b981', a: '#06b6d4', a2: '#84cc16' },
-  { name: '日落橙', p: '#f59e0b', a: '#ef4444', a2: '#ec4899' },
+  { name: '暖陶鼠尾草', p: '#b8866d', a: '#8ba888', a2: '#d4a574' },
+  { name: '雾霾蓝灰', p: '#7ea5b5', a: '#9aadb8', a2: '#b8a89a' },
+  { name: '樱花暖粉', p: '#c98b8b', a: '#d4a5a5', a2: '#b8a088' },
+  { name: '橄榄苔绿', p: '#8a9a7b', a: '#a3b598', a2: '#c4a87a' },
+  { name: '摩卡杏色', p: '#a68b6d', a: '#b59a82', a2: '#8ba888' },
 ]
 
 function applyPreset(preset: (typeof presetColors)[number]) {
