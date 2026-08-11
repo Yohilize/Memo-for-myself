@@ -14,23 +14,38 @@ import BaseButton from '@/components/base/BaseButton.vue'
       <div class="status-list">
         <div class="status-item">
           <span class="check done">✓</span>
-          <span>Phase 0 — 项目初始化 + Design Lab + Token 体系</span>
+          <span>Phase 0 — Foundation（Design Lab + Token 体系）</span>
+        </div>
+        <div class="status-item active">
+          <span class="check">●</span>
+          <span>Phase 1 — Local-first Core（数据层 + CRUD）</span>
         </div>
         <div class="status-item pending">
           <span class="check">○</span>
-          <span>Phase 1 — 数据层 + CRUD</span>
+          <span>Phase 2 — Time Management Features</span>
         </div>
         <div class="status-item pending">
           <span class="check">○</span>
-          <span>Phase 2 — 模块 UI + 日历集成 + 部署</span>
+          <span>Phase 3 — Personal Visual Iteration</span>
+        </div>
+        <div class="status-item pending">
+          <span class="check">○</span>
+          <span>Phase 4 — Cloud Evolution</span>
         </div>
       </div>
 
-      <RouterLink to="/playground">
-        <BaseButton variant="primary" size="lg">
-          进入 Design Lab →
-        </BaseButton>
-      </RouterLink>
+      <div class="action-row">
+        <RouterLink to="/playground">
+          <BaseButton variant="ghost" size="lg">
+            Design Lab
+          </BaseButton>
+        </RouterLink>
+        <RouterLink to="/data-test">
+          <BaseButton variant="primary" size="lg">
+            数据持久化验证 →
+          </BaseButton>
+        </RouterLink>
+      </div>
     </BaseCard>
   </div>
 </template>
@@ -102,6 +117,21 @@ import BaseButton from '@/components/base/BaseButton.vue'
 
 .status-item.pending {
   opacity: 0.5;
+}
+
+.status-item.active {
+  border: 1px solid var(--glass-border-hover);
+}
+
+.status-item.active .check {
+  color: var(--color-primary);
+  border-color: var(--color-primary);
+}
+
+.action-row {
+  display: flex;
+  gap: var(--space-3);
+  justify-content: center;
 }
 
 .check {

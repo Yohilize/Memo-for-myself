@@ -13,6 +13,11 @@ const router = createRouter({
       name: 'playground',
       component: () => import('@/design-lab/DesignLabView.vue'),
     },
+    {
+      path: '/data-test',
+      name: 'data-test',
+      component: () => import('@/views/DataTestView.vue'),
+    },
   ],
 })
 

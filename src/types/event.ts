@@ -25,7 +25,8 @@ export interface EventBase {
 export interface CalendarEvent extends EventBase {
   type: 'calendar'
   event_date: string // 'YYYY-MM-DD'
-  event_time: string // 'HH:mm'
+  all_day: boolean
+  event_time: string // 'HH:mm'（all_day 为 true 时忽略）
   duration_min: number | null
 }
 
@@ -46,6 +47,7 @@ export interface DurationEvent extends EventBase {
 /** Idea：灵感记录 */
 export interface IdeaEvent extends EventBase {
   type: 'idea'
+  content?: string
   archived: boolean
 }
 
