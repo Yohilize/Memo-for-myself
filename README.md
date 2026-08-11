@@ -4,7 +4,7 @@
 
 ## 产品定位
 
-MYMEMO 不是通用 SaaS 效率工具，不追求成为下一个 Todoist 或 Notion。
+MYMEMO 是一款面向个人长期使用的时间管理工具。
 
 它区别于传统 Todo / Calendar 的地方：
 
@@ -12,7 +12,7 @@ MYMEMO 不是通用 SaaS 效率工具，不追求成为下一个 Todoist 或 Not
 - 不追求企业化管理
 - 核心是个人时间管理和长期陪伴使用
 
-唯一用户是项目作者本人。工具会随着使用持续迭代，逐渐形成符合个人审美和习惯的数字空间。
+用户是项目作者本人。工具会随着使用持续迭代，逐渐形成符合个人审美和习惯的数字空间。
 
 核心功能模块：日历事件、Deadline 追踪、时间块（Duration）、灵感记录（Idea）。
 
@@ -21,7 +21,7 @@ MYMEMO 不是通用 SaaS 效率工具，不追求成为下一个 Todoist 或 Not
 为了提升长期使用体验，采用具有个人审美倾向的视觉设计：
 
 - Glassmorphism（玻璃拟态）
-- Soft Gradient（柔和渐变）
+- Soft Gradient（柔和渐变~~~~）
 - Anime-inspired aesthetic（日系二次元美学倾向）
 - Personal Dashboard / Floating Panel（个人面板 / 悬浮容器）
 
