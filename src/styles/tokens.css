@@ -1,0 +1,131 @@
+/* ============================================================
+   MYMEMO Design Tokens
+   所有视觉参数集中管理，组件禁止硬编码颜色/模糊/圆角值。
+   主题切换 = 覆盖此文件中的变量值。
+   ============================================================ */
+
+:root {
+  /* ---------- 主色系（二次元紫蓝粉） ---------- */
+  --color-primary: #a855f7;
+  --color-primary-light: #c084fc;
+  --color-primary-dark: #7c3aed;
+  --color-accent: #3b82f6;
+  --color-accent-light: #60a5fa;
+  --color-accent-2: #ec4899;
+
+  /* 主色渐变 */
+  --gradient-primary: linear-gradient(135deg, var(--color-primary), var(--color-accent));
+  --gradient-text: linear-gradient(135deg, #c084fc, #60a5fa, #f472b6);
+
+  /* ---------- 语义色 ---------- */
+  --color-success: #10b981;
+  --color-success-light: #34d399;
+  --color-warning: #f59e0b;
+  --color-warning-light: #fbbf24;
+  --color-danger: #ef4444;
+  --color-danger-light: #f87171;
+  --color-info: #3b82f6;
+
+  /* ---------- 事件类型色 ---------- */
+  --color-event-calendar: #60a5fa;
+  --color-event-deadline: #fbbf24;
+  --color-event-duration: #34d399;
+  --color-event-idea: #c084fc;
+
+  /* ---------- 文字色 ---------- */
+  --color-text-primary: rgba(255, 255, 255, 0.92);
+  --color-text-secondary: rgba(255, 255, 255, 0.65);
+  --color-text-tertiary: rgba(255, 255, 255, 0.40);
+
+  /* ---------- 背景底色 ---------- */
+  --color-bg-base: #0f0f1a;
+
+  /* ---------- 玻璃面板（主面板） ---------- */
+  --glass-bg: rgba(255, 255, 255, 0.06);
+  --glass-bg-hover: rgba(255, 255, 255, 0.10);
+  --glass-bg-active: rgba(255, 255, 255, 0.14);
+  --glass-border: rgba(255, 255, 255, 0.10);
+  --glass-border-hover: rgba(255, 255, 255, 0.18);
+  --glass-blur: 20px;
+  --glass-saturate: 1.5;
+  --glass-radius: 20px;
+  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+  --glass-shadow-hover: 0 12px 40px rgba(0, 0, 0, 0.4);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.10);
+
+  /* ---------- 次级表面（输入框/小卡片） ---------- */
+  --surface-bg: rgba(255, 255, 255, 0.04);
+  --surface-bg-hover: rgba(255, 255, 255, 0.07);
+  --surface-border: rgba(255, 255, 255, 0.08);
+  --surface-radius: 12px;
+
+  /* ---------- 背景层配置 ---------- */
+  --bg-mask-opacity: 0.3;
+  --bg-image-opacity: 0.4;
+  --bg-image-blur: 0px;
+  --bg-orb-opacity: 0.5;
+  --bg-orb-blur: 80px;
+  --bg-orb-color-1: #a855f7;
+  --bg-orb-color-2: #3b82f6;
+  --bg-orb-color-3: #ec4899;
+  --bg-gradient:
+    radial-gradient(ellipse at 20% 20%, rgba(168, 85, 247, 0.25) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 30%, rgba(59, 130, 246, 0.20) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 80%, rgba(236, 72, 153, 0.18) 0%, transparent 50%),
+    linear-gradient(135deg, #1a1033 0%, #0f0f1a 50%, #1a1a2e 100%);
+
+  /* ---------- 间距系统（4px 基准） ---------- */
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-5: 20px;
+  --space-6: 24px;
+  --space-8: 32px;
+  --space-10: 40px;
+  --space-12: 48px;
+
+  /* ---------- 字体 ---------- */
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'PingFang SC',
+    'Microsoft YaHei', sans-serif;
+  --font-mono: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+
+  --text-xs: 11px;
+  --text-sm: 12px;
+  --text-base: 13px;
+  --text-lg: 15px;
+  --text-xl: 18px;
+  --text-2xl: 22px;
+  --text-3xl: 28px;
+
+  --font-normal: 400;
+  --font-medium: 500;
+  --font-semibold: 600;
+  --font-bold: 700;
+
+  --leading-tight: 1.3;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.7;
+
+  /* ---------- 动画 ---------- */
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --duration-fast: 0.15s;
+  --duration-normal: 0.25s;
+  --duration-slow: 0.4s;
+
+  /* ---------- 布局尺寸 ---------- */
+  --app-width: 66vw;
+  --app-max-width: 1200px;
+  --app-min-width: 800px;
+  --sidebar-width: 72px;
+  --aside-width: 260px;
+
+  /* ---------- z-index 层级 ---------- */
+  --z-background: 0;
+  --z-content: 1;
+  --z-sticky: 100;
+  --z-dropdown: 200;
+  --z-modal: 300;
+  --z-toast: 400;
+}
