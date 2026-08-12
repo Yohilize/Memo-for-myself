@@ -1,80 +1,88 @@
 /* ============================================================
-   MYMEMO Design Tokens — Warm Light Theme
-   所有视觉参数集中管理，组件禁止硬编码颜色/模糊/圆角值。
-   主题切换 = 覆盖此文件中的变量值。
+   MYMEMO Design Tokens — Warm Paper Diary Theme
+   取材自 icon_orgin.jpg：暖棕发丝 / 柔陶土红丝带 / 米白领 / 暖灰底
+   基调：柔和、低饱和、暖米白纸质、大量留白、微量玻璃拟态
    ============================================================ */
 
 :root {
-  /* ---------- 主色系（暖陶土 / 柔鼠尾草） ---------- */
-  --color-primary: #b8866d;
-  --color-primary-light: #cfa48a;
-  --color-primary-dark: #9a6d55;
-  --color-accent: #8ba888;
-  --color-accent-light: #a3bda0;
-  --color-accent-2: #d4a574;
+  /* ---------- 主色系（取自 icon_orgin.jpg） ---------- */
+  /* Primary = 发丝中色 #8b6f5c —— 柔和暖棕 */
+  --color-primary: #8b6f5c;
+  --color-primary-light: #a38875;
+  --color-primary-dark: #6d5747;
 
-  /* 主色渐变 */
+  /* Accent = 丝带色 #c96a5a —— 柔低饱和陶土红 */
+  --color-accent: #c96a5a;
+  --color-accent-light: #d88a7d;
+
+  /* Accent 2 = 暖米灰棕 #b8a092 —— 画面背景中的人物阴影灰 */
+  --color-accent-2: #b8a092;
+
+  /* 主色渐变（低对比，柔和过渡） */
   --gradient-primary: linear-gradient(135deg, var(--color-primary), var(--color-accent));
-  --gradient-text: linear-gradient(135deg, #b8866d, #8ba888);
+  --gradient-text: linear-gradient(135deg, #8b6f5c, #c96a5a);
 
-  /* ---------- 语义色（低饱和暖调） ---------- */
-  --color-success: #7fa67a;
-  --color-success-light: #9cb896;
-  --color-warning: #d4a574;
-  --color-warning-light: #e0bc92;
-  --color-danger: #c97b6b;
-  --color-danger-light: #d89a8d;
-  --color-info: #7ea5b5;
+  /* ---------- 语义色（全部低饱和暖调） ---------- */
+  --color-success: #8aa388;
+  --color-success-light: #a5baa3;
+  --color-warning: #caa07a;
+  --color-warning-light: #dcb99a;
+  --color-danger: #c96a5a;          /* 与 Accent 同源 */
+  --color-danger-light: #d88a7d;
+  --color-info: #8fa3ac;             /* 极少量冷色做平衡，仍偏柔 */
 
-  /* ---------- 事件类型色（柔和低饱和） ---------- */
-  --color-event-calendar: #7ea5b5;
-  --color-event-deadline: #d4a574;
-  --color-event-duration: #8ba888;
-  --color-event-idea: #b8866d;
+  /* ---------- 事件类型色 ---------- */
+  --color-event-calendar: #8fa3ac;
+  --color-event-deadline: #c96a5a;
+  --color-event-duration: #8aa388;
+  --color-event-idea: #8b6f5c;
 
-  /* ---------- 文字色（暖棕灰） ---------- */
-  --color-text-primary: #4a3f35;
-  --color-text-secondary: #7a6f63;
-  --color-text-tertiary: #a39889;
+  /* ---------- 文字色（暖棕灰层次，避免纯黑） ---------- */
+  --color-text-primary: #4a3f35;     /* 深色衣领 #4a3f35 */
+  --color-text-secondary: #7a6a5d;
+  --color-text-tertiary: #a39484;
 
-  /* ---------- 背景底色（暖米白） ---------- */
-  --color-bg-base: #faf6f1;
+  /* ---------- 背景底色：暖米白纸 ---------- */
+  --color-bg-base: #fbf7f2;
 
-  /* ---------- 玻璃面板（主面板） ---------- */
-  --glass-bg: rgba(255, 255, 255, 0.55);
-  --glass-bg-hover: rgba(255, 255, 255, 0.70);
+  /* ---------- 玻璃面板（柔和毛玻璃，无强发光） ---------- */
+  --glass-bg: rgba(255, 255, 255, 0.52);
+  --glass-bg-hover: rgba(255, 255, 255, 0.68);
   --glass-bg-active: rgba(255, 255, 255, 0.80);
-  --glass-border: rgba(180, 160, 140, 0.18);
-  --glass-border-hover: rgba(180, 160, 140, 0.30);
-  --glass-blur: 16px;
-  --glass-saturate: 1.2;
+  --glass-border: rgba(150, 125, 100, 0.14);
+  --glass-border-hover: rgba(150, 125, 100, 0.24);
+  --glass-blur: 14px;
+  --glass-saturate: 1.10;
   --glass-radius: 20px;
-  --glass-shadow: 0 4px 24px rgba(120, 100, 80, 0.08);
-  --glass-shadow-hover: 0 8px 32px rgba(120, 100, 80, 0.12);
-  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.60);
+  --glass-shadow: 0 4px 22px rgba(110, 90, 70, 0.06);
+  --glass-shadow-hover: 0 8px 30px rgba(110, 90, 70, 0.10);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.55);
 
-  /* ---------- 次级表面（输入框/小卡片） ---------- */
-  --surface-bg: rgba(255, 255, 255, 0.40);
+  /* ---------- 次级表面（输入框 / 小卡） ---------- */
+  --surface-bg: rgba(255, 255, 255, 0.42);
   --surface-bg-hover: rgba(255, 255, 255, 0.60);
-  --surface-border: rgba(180, 160, 140, 0.15);
+  --surface-border: rgba(150, 125, 100, 0.12);
   --surface-radius: 12px;
 
-  /* ---------- 背景层配置 ---------- */
+  /* ---------- 背景层配置（光球=肤色/发丝/丝带高光） ---------- */
   --bg-mask-opacity: 0;
-  --bg-image-opacity: 0.4;
+  --bg-image-opacity: 0.55;
   --bg-image-blur: 0px;
+  --bg-offset-x: 0px;     /* 背景图相对中心的横向偏移 */
+  --bg-offset-y: 0px;     /* 背景图相对中心的纵向偏移 */
+  --bg-scale: 1.0;        /* 背景图缩放（1.0 = 以 cover 为基准） */
   --bg-orb-opacity: 0.35;
   --bg-orb-blur: 100px;
-  --bg-orb-color-1: #e8c9a8;
-  --bg-orb-color-2: #b8d0b5;
-  --bg-orb-color-3: #e5c4b8;
+  --bg-orb-color-1: #fce5d7;  /* 肤色柔桃 */
+  --bg-orb-color-2: #c9b5a4;  /* 发丝高光暖棕 */
+  --bg-orb-color-3: #e5b8aa;  /* 丝带高光柔红 */
   --bg-gradient:
-    radial-gradient(ellipse at 20% 15%, rgba(232, 201, 168, 0.45) 0%, transparent 50%),
-    radial-gradient(ellipse at 80% 25%, rgba(184, 208, 181, 0.35) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 85%, rgba(229, 196, 184, 0.30) 0%, transparent 50%),
-    linear-gradient(160deg, #fdf8f2 0%, #f7f0e8 45%, #f2ebe2 100%);
+    radial-gradient(ellipse at 22% 18%, rgba(252, 229, 215, 0.55) 0%, transparent 52%),
+    radial-gradient(ellipse at 78% 22%, rgba(201, 181, 164, 0.30) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 85%, rgba(201, 106, 90, 0.14) 0%, transparent 55%),
+    linear-gradient(160deg, #fdf9f4 0%, #faf3ec 45%, #f6ede3 100%);
 
-  /* ---------- 间距系统（4px 基准） ---------- */
+  /* ---------- 间距（4px 基准） ---------- */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -107,12 +115,12 @@
   --leading-normal: 1.5;
   --leading-relaxed: 1.7;
 
-  /* ---------- 动画 ---------- */
-  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
-  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
-  --duration-fast: 0.15s;
-  --duration-normal: 0.25s;
-  --duration-slow: 0.4s;
+  /* ---------- 动画（更柔更慢） ---------- */
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-in-out: cubic-bezier(0.7, 0, 0.3, 1);
+  --duration-fast: 0.18s;
+  --duration-normal: 0.32s;
+  --duration-slow: 0.5s;
 
   /* ---------- 布局尺寸 ---------- */
   --app-width: 66vw;
@@ -121,7 +129,7 @@
   --sidebar-width: 72px;
   --aside-width: 260px;
 
-  /* ---------- z-index 层级 ---------- */
+  /* ---------- z-index ---------- */
   --z-background: 0;
   --z-content: 1;
   --z-sticky: 100;

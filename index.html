@@ -2,7 +2,12 @@
 <html lang="zh-CN">
   <head>
     <meta charset="UTF-8" />
-    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <!-- Favicon：
+         - 以 icon_orgin.jpg 原始人物为基础，仅做【方形裁切 + 居中 + 缩放到 256×256】导出为静态 PNG
+         - 不重绘人物、不添加任何文字/字母/Logo，完全保留原图人物视觉特征
+         - 路径 /favicon.png 符合 Vite public 目录规则（dev 与 build 一致可用）
+    -->
+    <link rel="icon" type="image/png" href="/favicon.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>MYMEMO</title>
   </head>
