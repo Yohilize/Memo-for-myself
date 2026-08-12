@@ -230,11 +230,12 @@ function onStageWheel(ev: WheelEvent) {
             <div class="preview-bg-orb o2"></div>
             <div class="preview-bg-orb o3"></div>
 
-            <!-- 与真实 BackgroundLayer 一致：cover 为基准 + transform(offset/scale) -->
+            <!-- 与真实 BackgroundLayer 一致：真实 <img> + min-cover（图片本身完整保留像素不被提前裁切）
+                 translate(offsetX/offsetY) 平移时会真正暴露原先在容器外的图像内容，
+                 这样"拖动调整位置 / 缩放"的操作对用户才是有意义的。 -->
             <div class="preview-bg-image-wrap">
-              <div class="preview-bg-image"
-                :style="{ backgroundImage: wallpaperUrl ? `url(${wallpaperUrl})` : 'none' }">
-              </div>
+              <img v-if="wallpaperUrl" class="preview-bg-image"
+                :src="wallpaperUrl" alt="" draggable="false" />
             </div>
             <div class="preview-bg-mask"></div>
           </div>
@@ -249,7 +250,7 @@ function onStageWheel(ev: WheelEvent) {
             <div class="preview-app-inner" :style="{ width: state.appWidth + '%' }">
               <!-- 左侧栏 -->
               <aside class="preview-sidebar">
-                <div class="preview-logo"></div>
+                <img class="preview-logo" src="/favicon.png" alt="" draggable="false" />
                 <div class="preview-nav active">📅</div>
                 <div class="preview-nav">⏰</div>
                 <div class="preview-nav">💡</div>
@@ -797,26 +798,42 @@ function onStageWheel(ev: WheelEvent) {
   top: 38%; left: 55%;
 }
 
-/* 背景图（与 BackgroundLayer.vue 使用同一套模型） */
+/* 背景图：真实 <img> + transform(offset/scale) 模型
+   —— 图片自身不被提前裁切。用 min-width/min-height:100% 达到 cover 语义，
+      溢出部分交由外层容器的 overflow: hidden 管理；
+      这样 translate / scale 作用在完整的图片元素上，
+      用户"拖动图片"时才能真正让原先在容器外的像素移动到视口内，
+      而不是移动一块已经被裁过的画布。 */
 .preview-bg-image-wrap {
   position: absolute;
   inset: 0;
   overflow: hidden;
   opacity: var(--bg-image-opacity);
+  pointer-events: none;
 }
 .preview-bg-image {
   position: absolute;
-  left: 50%; top: 50%;
-  width: 100%; height: 100%;
-  background-size: cover;
-  background-position: center center;
-  background-repeat: no-repeat;
+  left: 50%;
+  top: 50%;
+  /* cover 的等价写法：让图片自身尺寸至少覆盖容器每一边 */
+  min-width: 100%;
+  min-height: 100%;
+  width: auto;
+  height: auto;
+  /* 浏览器默认对 <img> 有 max-width:100% 限制，必须去掉，否则放大不了 */
+  max-width: none;
+  max-height: none;
+  display: block;
+  transform-origin: center center;
   transform:
     translate(-50%, -50%)
     translate(var(--bg-offset-x, 0px), var(--bg-offset-y, 0px))
     scale(var(--bg-scale, 1));
-  transform-origin: center center;
   filter: blur(var(--bg-image-blur, 0px));
+  /* 阻止浏览器原生拖动选择框 / 拖 ghost */
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
 }
 .preview-bg-mask {
   position: absolute;
@@ -882,9 +899,14 @@ function onStageWheel(ev: WheelEvent) {
 .preview-logo {
   width: 36px; height: 36px;
   border-radius: 10px;
-  /* 极简小方块占位：未来正式版直接用 icon_orgin.jpg 中的人物 */
-  background: linear-gradient(135deg, #fce5d7 0%, #e5b8aa 100%);
+  object-fit: cover;
+  object-position: center center;
+  display: block;
   margin-bottom: 8px;
+  user-select: none;
+  -webkit-user-drag: none;
+  background: #f6eadc;  /* 图片加载前的暖色垫底，和 favicon.png 的方形底近似 */
+  flex-shrink: 0;
 }
 .preview-nav {
   width: 36px; height: 36px;

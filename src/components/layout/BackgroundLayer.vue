@@ -2,8 +2,12 @@
 /**
  * BackgroundLayer
  * 独立的背景层组件。背景图采用真实 <img> + transform(offset/scale) 模型，
+ * 图片本身不会被提前裁切，translate/scale 作用在完整像素上，
  * 与 Design Lab 中用户的拖拽/缩放操作一一对应。
  */
+import { computed } from 'vue'
+import { getWallpaper } from '../../design-lab/useTokenControls'
+const wallpaperSrc = computed(() => getWallpaper())
 </script>
 
 <template>
@@ -13,12 +17,13 @@
     <div class="bg-orb bg-orb-2"></div>
     <div class="bg-orb bg-orb-3"></div>
 
-    <!-- 真实 <img>：以 cover 为基准（min-width/min-height: 100%），
-         居中定位后再施加 --bg-offset-x/y 与 --bg-scale，
-         这样用户在 Design Lab 里拖出来的效果 = 未来真实 MYMEMO 里看到的效果。 -->
+    <!-- 真实 <img>：min-cover（图片自身不被提前裁切），
+         居中定位后再施加 --bg-offset-x/y 与 --bg-scale。
+         translate(px) 时，原先在容器外的图像像素会真正"移动"到视口内，
+         因此用户在 Design Lab 拖出来的构图 = 真实 MYMEMO 首页看到的构图。 -->
     <div class="bg-image-wrap">
-      <img class="bg-image-img" alt=""
-        :style="{ backgroundImage: 'var(--bg-image-url, none)' }" />
+      <img v-if="wallpaperSrc" class="bg-image-img"
+        :src="wallpaperSrc" alt="" draggable="false" />
     </div>
 
     <div class="bg-mask"></div>
@@ -74,48 +79,38 @@
   animation: float-3 17s ease-in-out infinite;
 }
 
-/* 背景图：真实 <img> + transform(offset/scale) */
+/* 背景图：真实 <img> + min-cover + transform(offset/scale)
+   —— 核心：img 元素按自身比例保留全部像素，
+      仅通过 min-width/min-height:100% 保证最小覆盖；
+      translate 作用在完整的 img 元素上，所以"拖动"时
+      原先在容器外的像素会真正进入视口。
+      overflow:hidden 只裁剪容器可见区域，不影响图片本身。 */
 .bg-image-wrap {
   position: absolute;
   inset: 0;
   overflow: hidden;
   opacity: var(--bg-image-opacity);
 }
-.bg-image-wrap::after {
-  /* 用伪元素承载背景图，这样 background-size/position 可控，
-     同时我们又能做 transform(offsetX/offsetY/scale) */
-  content: '';
+.bg-image-img {
   position: absolute;
-  /* 初始：居中 + cover（min 尺寸） */
   left: 50%;
   top: 50%;
-  width: auto;
-  height: auto;
   min-width: 100%;
   min-height: 100%;
-  /* 背景图真正作为层叠背景渲染，便于响应容器实际尺寸 */
-  background-image: var(--bg-image-url, none);
-  background-size: cover;
-  background-position: center center;
-  background-repeat: no-repeat;
-  /* 关键点：
-     translate(-50%, -50%) = 对齐到图片中心 → 与容器中心重合
-     translate(var(--bg-offset-x), var(--bg-offset-y)) = 用户的实时拖拽
-     scale(var(--bg-scale)) = 用户的实时缩放
-  */
+  width: auto;
+  height: auto;
+  max-width: none;
+  max-height: none;
+  display: block;
+  transform-origin: center center;
   transform:
     translate(-50%, -50%)
     translate(var(--bg-offset-x, 0px), var(--bg-offset-y, 0px))
     scale(var(--bg-scale, 1));
-  transform-origin: center center;
   filter: blur(var(--bg-image-blur, 0px));
-  /* 尺寸 = 容器尺寸的 100% + scale 后会溢出；overflow:hidden 裁掉 */
-  width: 100%;
-  height: 100%;
-}
-
-.bg-image-img {
-  display: none; /* 保留节点以防后续扩展，实际渲染用 ::after */
+  user-select: none;
+  -webkit-user-drag: none;
+  pointer-events: none;
 }
 
 .bg-mask {
