@@ -6,81 +6,98 @@
 
 :root {
   /* ---------- 主色系（取自 icon_orgin.jpg） ---------- */
-  /* Primary = 发丝中色 #8b6f5c —— 柔和暖棕 */
-  --color-primary: #8b6f5c;
-  --color-primary-light: #a38875;
-  --color-primary-dark: #6d5747;
+  /* 注意：以下三个色值是"主题调色板的顶层旋钮"。
+     在 Design Lab 修改 primary/accent/accent2 时，整套界面会通过 color-mix()
+     自动派生：文字层、边框、玻璃阴影、光球背景渐变等一起"同温"变化。 */
+  --color-primary: #8b6f5c;   /* Primary = 发丝中色 —— 柔和暖棕 */
+  --color-accent:  #c96a5a;   /* Accent  = 丝带色 —— 柔低饱和陶土红 */
+  --color-accent-2: #b8a092;  /* Accent2 = 暖米灰棕 —— 画面阴影/背景灰 */
 
-  /* Accent = 丝带色 #c96a5a —— 柔低饱和陶土红 */
-  --color-accent: #c96a5a;
-  --color-accent-light: #d88a7d;
+  /* ---------- 派生：主色/强调色 的明暗层次 ---------- */
+  --color-primary-light: color-mix(in srgb, var(--color-primary) 88%, #ffffff 12%);
+  --color-primary-dark:  color-mix(in srgb, var(--color-primary) 82%, #2a231d 18%);
+  --color-accent-light:  color-mix(in srgb, var(--color-accent)  82%, #ffffff 18%);
 
-  /* Accent 2 = 暖米灰棕 #b8a092 —— 画面背景中的人物阴影灰 */
-  --color-accent-2: #b8a092;
-
-  /* 主色渐变（低对比，柔和过渡） */
+  /* 渐变（继续基于 primary+accent，修改两者后渐变自动跟上） */
   --gradient-primary: linear-gradient(135deg, var(--color-primary), var(--color-accent));
-  --gradient-text: linear-gradient(135deg, #8b6f5c, #c96a5a);
+  --gradient-text:    linear-gradient(135deg, var(--color-primary), var(--color-accent));
 
-  /* ---------- 语义色（全部低饱和暖调） ---------- */
+  /* ---------- 语义色（成功/警告/危险/信息）—— 亮色由暗色自动派生 ---------- */
   --color-success: #8aa388;
-  --color-success-light: #a5baa3;
+  --color-success-light: color-mix(in srgb, var(--color-success) 82%, #ffffff 18%);
   --color-warning: #caa07a;
-  --color-warning-light: #dcb99a;
-  --color-danger: #c96a5a;          /* 与 Accent 同源 */
-  --color-danger-light: #d88a7d;
-  --color-info: #8fa3ac;             /* 极少量冷色做平衡，仍偏柔 */
+  --color-warning-light: color-mix(in srgb, var(--color-warning) 82%, #ffffff 18%);
+  /* Danger = 与 Accent 同源（陶土红），避免引入一支新的刺眼红 */
+  --color-danger: var(--color-accent);
+  --color-danger-light: color-mix(in srgb, var(--color-danger) 84%, #ffffff 16%);
+  --color-info: #8fa3ac;
+  --color-info-light: color-mix(in srgb, var(--color-info) 82%, #ffffff 18%);
 
-  /* ---------- 事件类型色 ---------- */
+  /* ---------- 事件类型色（业务语义，不随主题调色板旋钮变化）
+     deadline/idea 与 danger/primary 做了语义对齐。 ---------- */
   --color-event-calendar: #8fa3ac;
-  --color-event-deadline: #c96a5a;
+  --color-event-deadline: var(--color-danger);
   --color-event-duration: #8aa388;
-  --color-event-idea: #8b6f5c;
+  --color-event-idea:     var(--color-primary);
 
-  /* ---------- 文字色（暖棕灰层次，避免纯黑） ---------- */
-  --color-text-primary: #4a3f35;     /* 深色衣领 #4a3f35 */
-  --color-text-secondary: #7a6a5d;
-  --color-text-tertiary: #a39484;
+  /* ---------- 语义化 Design Token：文字层次（随 primary 暖棕灰渐变，永不纯黑） ---------- */
+  --color-text-primary:    color-mix(in srgb, var(--color-primary) 26%, #241c17 74%);
+  --color-text-secondary:  color-mix(in srgb, var(--color-primary) 58%, #4f4238 42%);
+  --color-text-tertiary:   color-mix(in srgb, var(--color-primary) 85%, #ffffff 15%);
+  --color-text-placeholder:color-mix(in srgb, var(--color-primary) 48%, #b6a99d 52%);
 
-  /* ---------- 背景底色：暖米白纸 ---------- */
+  /* ---------- 背景底色：暖米白纸（整体基调，保持不变，不随 primary 大幅漂色） ---------- */
   --color-bg-base: #fbf7f2;
 
-  /* ---------- 玻璃面板（柔和毛玻璃，无强发光） ---------- */
+  /* ---------- 玻璃面板（毛玻璃的底色/透明度是结构变量；边框/阴影/高光 跟随 primary 获得整体同温） ---------- */
   --glass-bg: rgba(255, 255, 255, 0.52);
   --glass-bg-hover: rgba(255, 255, 255, 0.68);
   --glass-bg-active: rgba(255, 255, 255, 0.80);
-  --glass-border: rgba(150, 125, 100, 0.14);
-  --glass-border-hover: rgba(150, 125, 100, 0.24);
   --glass-blur: 14px;
   --glass-saturate: 1.10;
   --glass-radius: 20px;
-  --glass-shadow: 0 4px 22px rgba(110, 90, 70, 0.06);
-  --glass-shadow-hover: 0 8px 30px rgba(110, 90, 70, 0.10);
-  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.55);
+  /* 语义化派生（跟随 primary） */
+  --glass-border:          color-mix(in srgb, var(--color-primary) 14%, transparent);
+  --glass-border-hover:    color-mix(in srgb, var(--color-primary) 24%, transparent);
+  --glass-shadow:          0 4px 22px color-mix(in srgb, var(--color-primary) 28%, transparent);
+  --glass-shadow-hover:    0 8px 30px color-mix(in srgb, var(--color-primary) 36%, transparent);
+  --glass-highlight:       inset 0 1px 0 rgba(255, 255, 255, 0.55);
 
-  /* ---------- 次级表面（输入框 / 小卡） ---------- */
+  /* ---------- 次级表面（输入框 / 小卡）—— 底色保持白纸；边框、柔和底色随主题派生 ---------- */
   --surface-bg: rgba(255, 255, 255, 0.42);
   --surface-bg-hover: rgba(255, 255, 255, 0.60);
-  --surface-border: rgba(150, 125, 100, 0.12);
+  --surface-bg-active: rgba(255, 255, 255, 0.72);
+  --surface-border:        color-mix(in srgb, var(--color-primary) 12%, transparent);
   --surface-radius: 12px;
+  --divider-color:         color-mix(in srgb, var(--color-primary) 10%, transparent);
 
-  /* ---------- 背景层配置（光球=肤色/发丝/丝带高光） ---------- */
+  /* ---------- 强调色柔和版（Badge soft、选中态底色、小点缀、导航 active 背景） —— 随 accent / accent2 派生 ---------- */
+  --color-primary-soft:  color-mix(in srgb, var(--color-primary)  16%, transparent);
+  --color-accent-soft:   color-mix(in srgb, var(--color-accent)   18%, transparent);
+  --color-accent-2-soft: color-mix(in srgb, var(--color-accent-2) 22%, transparent);
+  --color-highlight:     color-mix(in srgb, var(--color-accent-light) 40%, transparent);
+  --color-surface-soft:  color-mix(in srgb, var(--color-accent-2) 10%, transparent);
+
+  /* ---------- 背景层：光球 / 渐变（色调跟随 accent/accent-2，主题切换时背景温度整体变化） ---------- */
   --bg-mask-opacity: 0;
   --bg-image-opacity: 0.55;
   --bg-image-blur: 0px;
-  --bg-offset-x: 0px;     /* 背景图相对中心的横向偏移 */
-  --bg-offset-y: 0px;     /* 背景图相对中心的纵向偏移 */
-  --bg-scale: 1.0;        /* 背景图缩放（1.0 = 以 cover 为基准） */
+  --bg-offset-x: 0px;
+  --bg-offset-y: 0px;
+  --bg-scale: 1.0;
   --bg-orb-opacity: 0.35;
   --bg-orb-blur: 100px;
-  --bg-orb-color-1: #fce5d7;  /* 肤色柔桃 */
-  --bg-orb-color-2: #c9b5a4;  /* 发丝高光暖棕 */
-  --bg-orb-color-3: #e5b8aa;  /* 丝带高光柔红 */
+  --bg-orb-color-1: color-mix(in srgb, var(--color-accent)   22%, #ffffff 78%);  /* 肤色柔桃 */
+  --bg-orb-color-2: var(--color-accent-2);                                  /* 发丝暖高光 */
+  --bg-orb-color-3: color-mix(in srgb, var(--color-accent)   52%, #ffffff 48%);  /* 丝带高光柔红 */
   --bg-gradient:
-    radial-gradient(ellipse at 22% 18%, rgba(252, 229, 215, 0.55) 0%, transparent 52%),
-    radial-gradient(ellipse at 78% 22%, rgba(201, 181, 164, 0.30) 0%, transparent 50%),
-    radial-gradient(ellipse at 50% 85%, rgba(201, 106, 90, 0.14) 0%, transparent 55%),
-    linear-gradient(160deg, #fdf9f4 0%, #faf3ec 45%, #f6ede3 100%);
+    radial-gradient(ellipse at 22% 18%, color-mix(in srgb, var(--color-accent) 22%,   rgba(255,255,255,0.55)) 0%, transparent 52%),
+    radial-gradient(ellipse at 78% 22%, color-mix(in srgb, var(--color-accent-2) 95%, rgba(255,255,255,0.30)) 0%, transparent 50%),
+    radial-gradient(ellipse at 50% 85%, color-mix(in srgb, var(--color-accent) 14%,   rgba(255,255,255,0.14)) 0%, transparent 55%),
+    linear-gradient(160deg,
+      color-mix(in srgb, var(--color-accent-2) 4%,  #fdf9f4) 0%,
+      color-mix(in srgb, var(--color-accent-2) 6%,  #faf3ec) 45%,
+      color-mix(in srgb, var(--color-accent-2) 10%, #f6ede3) 100%);
 
   /* ---------- 间距（4px 基准） ---------- */
   --space-1: 4px;
@@ -136,4 +153,21 @@
   --z-dropdown: 200;
   --z-modal: 300;
   --z-toast: 400;
+}
+/* 导出自 Design Lab 2026-08-13T07:03:09.853Z */
+:root {
+  --glass-blur: 10px;
+  --glass-bg: rgba(255,255,255,0.50);
+  --glass-radius: 12px;
+  --bg-mask-opacity: 0;
+  --bg-image-opacity: 0.5;
+  --bg-image-blur: 8px;
+  --bg-offset-x: 0px;
+  --bg-offset-y: -57px;
+  --bg-scale: 0.5;
+  --bg-orb-opacity: 0.75;
+  --app-width: 66vw;
+  --color-primary: #a8837a;
+  --color-accent: #d89a8d;
+  --color-accent-2: #c9b5a4;
 }

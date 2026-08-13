@@ -82,7 +82,8 @@ function onInput(e: Event) {
   border-radius: 50%;
   background: var(--color-primary);
   border: 2px solid white;
-  box-shadow: 0 2px 8px rgba(184, 134, 109, 0.3);
+  /* 跟随 primary 的温度主题色阴影 */
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-primary) 30%, transparent);
   cursor: pointer;
   transition: transform var(--duration-fast) var(--ease-out);
 }
@@ -97,7 +98,7 @@ function onInput(e: Event) {
   border-radius: 50%;
   background: var(--color-primary);
   border: 2px solid white;
-  box-shadow: 0 2px 8px rgba(184, 134, 109, 0.3);
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--color-primary) 30%, transparent);
   cursor: pointer;
 }
 </style>

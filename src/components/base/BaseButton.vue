@@ -63,11 +63,12 @@ withDefaults(defineProps<Props>(), {
 .variant-primary {
   background: var(--gradient-primary);
   color: white;
-  box-shadow: 0 4px 16px rgba(184, 134, 109, 0.25);
+  /* 主按钮阴影：跟随 primary 派生，主题切换时阴影温度同步 */
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--color-primary) 30%, transparent);
 }
 
 .variant-primary:hover:not(:disabled) {
-  box-shadow: 0 6px 20px rgba(184, 134, 109, 0.35);
+  box-shadow: 0 6px 20px color-mix(in srgb, var(--color-primary) 40%, transparent);
   transform: translateY(-1px);
 }
 
@@ -93,12 +94,15 @@ withDefaults(defineProps<Props>(), {
 }
 
 .variant-danger {
-  background: rgba(239, 68, 68, 0.15);
+  /* 危险色使用 var(--color-danger)，它在 tokens.css 中 = var(--color-accent)
+     因此主题切换 accent → danger 同步柔化不刺眼 */
+  background: color-mix(in srgb, var(--color-danger) 18%, transparent);
   color: var(--color-danger-light);
-  border: 1px solid rgba(239, 68, 68, 0.25);
+  border: 1px solid color-mix(in srgb, var(--color-danger) 30%, transparent);
 }
 
 .variant-danger:hover:not(:disabled) {
-  background: rgba(239, 68, 68, 0.25);
+  background: color-mix(in srgb, var(--color-danger) 28%, transparent);
+  border-color: color-mix(in srgb, var(--color-danger) 42%, transparent);
 }
 </style>

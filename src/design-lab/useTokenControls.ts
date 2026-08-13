@@ -77,13 +77,6 @@ export const presetSnapshot = reactive({
   base: DEFAULT_PRESET.name,
 })
 
-function hexToRgba(hex: string, alpha: number): string {
-  const r = parseInt(hex.slice(1, 3), 16)
-  const g = parseInt(hex.slice(3, 5), 16)
-  const b = parseInt(hex.slice(5, 7), 16)
-  return `rgba(${r},${g},${b},${alpha})`
-}
-
 export function applyTokens(s: TokenState) {
   const root = document.documentElement
   // 玻璃
@@ -102,7 +95,7 @@ export function applyTokens(s: TokenState) {
   root.style.setProperty('--bg-scale', String(s.bgScale))
   // 布局
   root.style.setProperty('--app-width', `${s.appWidth}vw`)
-  // 颜色
+  // 颜色（顶层旋钮）
   root.style.setProperty('--color-primary', s.primaryColor)
   root.style.setProperty('--color-accent', s.accentColor)
   root.style.setProperty('--color-accent-2', s.accent2Color)
@@ -114,16 +107,13 @@ export function applyTokens(s: TokenState) {
     '--gradient-text',
     `linear-gradient(135deg, ${s.primaryColor}, ${s.accentColor})`,
   )
-  root.style.setProperty('--bg-orb-color-1', '#fce5d7')
-  root.style.setProperty('--bg-orb-color-2', '#c9b5a4')
-  root.style.setProperty('--bg-orb-color-3', '#e5b8aa')
-  root.style.setProperty(
-    '--bg-gradient',
-    'radial-gradient(ellipse at 22% 18%, ' + hexToRgba('#fce5d7', 0.55) + ' 0%, transparent 52%),' +
-      'radial-gradient(ellipse at 78% 22%, ' + hexToRgba('#c9b5a4', 0.30) + ' 0%, transparent 50%),' +
-      'radial-gradient(ellipse at 50% 85%, ' + hexToRgba(s.accentColor, 0.14) + ' 0%, transparent 55%),' +
-      'linear-gradient(160deg, #fdf9f4 0%, #faf3ec 45%, #f6ede3 100%)',
-  )
+  // 注意：以下语义 Token 不再在 JS 中硬编码写入，
+  // 而是由 tokens.css 通过 color-mix() 从 primary/accent/accent-2 实时派生：
+  //   光球（--bg-orb-color-1/2/3）、背景渐变（--bg-gradient）、
+  //   玻璃边框/阴影（--glass-border / --glass-shadow 等）、
+  //   Surface 边框、柔和底色、文字层次、danger/success/warning 的亮色。
+  // 因此上面只写入三个顶层旋钮 + 两条显式渐变即可，
+  // 浏览器会自动级联重新计算整套语义色，主题切换的视觉范围立刻覆盖整界面。
 }
 
 export function resetTokens() {
