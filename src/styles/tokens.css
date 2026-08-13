@@ -45,6 +45,8 @@
   --color-text-secondary:  color-mix(in srgb, var(--color-primary) 58%, #4f4238 42%);
   --color-text-tertiary:   color-mix(in srgb, var(--color-primary) 85%, #ffffff 15%);
   --color-text-placeholder:color-mix(in srgb, var(--color-primary) 48%, #b6a99d 52%);
+  /* 强调渐变背景上的文字（今日圈 / 主按钮字色）；保持高对比、不漂色 */
+  --color-text-on-gradient: #ffffff;
 
   /* ---------- 背景底色：暖米白纸（整体基调，保持不变，不随 primary 大幅漂色） ---------- */
   --color-bg-base: #fbf7f2;

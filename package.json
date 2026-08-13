@@ -15,6 +15,7 @@
     "pinia": "^2.2.4",
     "uuid": "^14.0.1",
     "vue": "^3.5.12",
+    "vue-cal": "4.10.2",
     "vue-router": "^4.4.5"
   },
   "devDependencies": {

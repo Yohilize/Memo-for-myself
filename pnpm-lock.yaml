@@ -23,6 +23,9 @@ importers:
       vue:
         specifier: ^3.5.12
         version: 3.5.41(typescript@5.6.3)
+      vue-cal:
+        specifier: 4.10.2
+        version: 4.10.2(vue@3.5.41(typescript@5.6.3))
       vue-router:
         specifier: ^4.4.5
         version: 4.6.4(vue@3.5.41(typescript@5.6.3))
@@ -547,6 +550,11 @@ packages:
   vscode-uri@3.1.0:
     resolution: {integrity: sha512-/BpdSx+yCQGnCvecbyXdxHDkuk55/G3xwnC0GqY4gmQ3j+A+g8kzzgB4Nk/SINjqn6+waqw3EgbVF2QKExkRxQ==}
 
+  vue-cal@4.10.2:
+    resolution: {integrity: sha512-VHaoqI2DLGlwo4BGoUKF97PqKdxGFHCilj2co40zraQXucolALDaYNdpSfdP1kO3f+uznuqbEFH3n/SF5fHPpQ==}
+    peerDependencies:
+      vue: ^3.2.0
+
   vue-demi@0.14.10:
     resolution: {integrity: sha512-nMZBOwuzabUO0nLgIcc6rycZEebF6eeUfaiQx9+WSk8e29IbLvPU9feI6tqW4kTo3hvoYAJkMh8n8D0fuISphg==}
     engines: {node: '>=12'}
@@ -973,6 +981,10 @@ snapshots:
       fsevents: 2.3.3
 
   vscode-uri@3.1.0: {}
+
+  vue-cal@4.10.2(vue@3.5.41(typescript@5.6.3)):
+    dependencies:
+      vue: 3.5.41(typescript@5.6.3)
 
   vue-demi@0.14.10(vue@3.5.41(typescript@5.6.3)):
     dependencies:

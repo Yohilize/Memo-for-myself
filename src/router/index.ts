@@ -18,6 +18,11 @@ const router = createRouter({
       name: 'data-test',
       component: () => import('@/views/DataTestView.vue'),
     },
+    {
+      path: '/calendar',
+      name: 'calendar',
+      component: () => import('@/views/CalendarView.vue'),
+    },
   ],
 })
 
