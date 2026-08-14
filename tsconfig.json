@@ -18,9 +18,20 @@
     "noUncheckedSideEffectImports": true,
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*"]
+      "@/*": ["src/*"],
+      "@design-lab/*": ["design-lab/*"],
+      "@calendar/*": ["Calendar/*"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.vue", "env.d.ts"],
+  "include": [
+    "src/**/*.ts",
+    "src/**/*.tsx",
+    "src/**/*.vue",
+    "design-lab/**/*.ts",
+    "design-lab/**/*.vue",
+    "Calendar/**/*.ts",
+    "Calendar/**/*.vue",
+    "env.d.ts"
+  ],
   "references": [{ "path": "./tsconfig.node.json" }]
 }

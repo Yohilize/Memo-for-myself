@@ -6,7 +6,7 @@
  * 与 Design Lab 中用户的拖拽/缩放操作一一对应。
  */
 import { computed } from 'vue'
-import { getWallpaper } from '../../design-lab/useTokenControls'
+import { getWallpaper } from '@design-lab/useTokenControls'
 const wallpaperSrc = computed(() => getWallpaper())
 </script>
 
