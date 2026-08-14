@@ -1,36 +1,126 @@
 <script setup lang="ts">
 /**
- * MYMEMO 主程序 · Dashboard（src/views/DashboardView.vue）
+ * MYMEMO 正式首页 · Dashboard（src/views/DashboardView.vue）
  *
- * —— 这是真正的 MYMEMO 主程序入口，而不是 design-lab 的视觉 Preview。
- * 设计定位：
- *   · 真实承载 MYMEMO 未来的业务入口（Memo、时间管理、个人 OS 式数字空间）。
- *   · 视觉骨架结构与 design-lab/Dashboard Preview 一致，以保证 DSL 对 tokens.css / 背景 / 玻璃面板
- *     的调试结果能无缝映射到真实主程序。
- *   · 但不耦合 DSL 的任何业务状态：真实数据流（Pinia→Service→Repository→IndexedDB）会走这张页面。
+ * 视觉骨架完全镜像 Design Lab 中的「Dashboard Preview」：
+ *   · 左侧固定 Sidebar（56px 品牌导航栏；MYMEMO logo + 模块 nav + 底部开发入口）
+ *   · 右侧主玻璃面板：欢迎头 + 统计 chip + 今日事件 + Calendar 正式模块
  *
- * 目前阶段：主骨架 + 顶栏（MYMEMO 品牌 + 右上角 Design Lab 小入口胶囊）+ 预留内容网格。
- * 未来 Calendar / Memo 等模块正式「集成」时，再把对应组件嵌入到下方内容网格。
+ * 模块接入：
+ *   · Calendar：复用 @calendar/CalendarView.vue（embedded 模式，去外层卡片/冗余标题），不复制重写
+ *   · 今日事件：直接接真实 Event Store（filterEventsForDay 从 IndexedDB 拉取今天的 events），不再用静态假数据
+ *   · 3 张统计 chip（待办/今日完成/灵感）：当前没有 Todo / Inspiration 业务系统，保留 Preview 静态数量与视觉
+ * 保留路由：
+ *   · /calendar：Calendar 独立调试页
+ *   · /design-lab：Design Lab 视觉调试页（Sidebar 底部有胶囊入口）
+ *   · /data-test：数据链路自检页（不删除路由；Dashboard 中不再显示占位 RouterLink，保留独立页入口）
  */
 import { RouterLink } from 'vue-router'
+import dayjs from 'dayjs'
+import { computed, onMounted } from 'vue'
 import BaseCard from '@/components/base/BaseCard.vue'
+import BaseBadge from '@/components/base/BaseBadge.vue'
+import CalendarView from '@calendar/CalendarView.vue'
+import { useEventStore } from '@/stores/eventStore'
+import {
+  filterEventsForDay,
+  dayEventTimeLabel,
+  dayEventSortKey,
+} from '@/services/eventCalendarMapper'
+import type { TimeEvent } from '@/types/event'
+
+const eventStore = useEventStore()
+
+// —— Dashboard Head：真实今天的日期 & 问候语（时间段对应） —— //
+const today = dayjs()
+const todayKey = today.format('YYYY-MM-DD')
+const dateText = computed(() => today.format('YYYY年M月D日 · dddd'))
+const greetingText = computed(() => {
+  const h = today.hour()
+  if (h < 6) return '夜深了，注意休息 ✨'
+  if (h < 12) return '早上好，新的一天开始啦 ☀️'
+  if (h < 14) return '中午好，记得吃饭 🍚'
+  if (h < 18) return '下午好，保持专注 🌿'
+  if (h < 22) return '晚上好，今天辛苦了 🌙'
+  return '夜深了，早点休息 🌌'
+})
+
+// —— 今日事件：直接接真实 Event Store（按类型色条 + 基础样式参考 Preview pv-event） —— //
+const eventsForToday = computed<TimeEvent[]>(() => {
+  const all = filterEventsForDay(eventStore.events ?? [], todayKey)
+  return [...all].sort((a, b) =>
+    dayEventSortKey(a, todayKey).localeCompare(dayEventSortKey(b, todayKey)),
+  )
+})
+
+const todayCountChip = computed(() => eventsForToday.value.length)
+
+const typeColorByType: Record<string, string> = {
+  calendar: 'var(--color-event-calendar)',
+  deadline: 'var(--color-event-deadline)',
+  duration: 'var(--color-event-duration)',
+  idea: 'var(--color-event-idea)',
+}
+const typeLabelByType: Record<string, string> = {
+  calendar: '日历事件',
+  deadline: 'Deadline',
+  duration: '时间块',
+  idea: '灵感',
+}
+
+// —— Dashboard 静态占位统计（Todo/Inspiration 业务系统未上线，保持 Preview 视觉） —— //
+// ⚠️ 保留静态，不为了填数字新建业务 Store；未来 Todo/Inspiration 上线后再替换为 computed。
+const statChips = [
+  { tag: '待办', value: 5, accent: 'var(--color-primary)' },
+  { tag: '今日完成', value: 2, accent: 'var(--color-success)' },
+  { tag: '灵感', value: 9, accent: 'var(--color-accent)' },
+] as const
+
+onMounted(() => {
+  eventStore.loadAll()
+})
 </script>
 
 <template>
   <div class="dashboard-root">
-    <!-- 顶部栏：MYMEMO 真正主程序标识 + 右上角开发入口（小胶囊：跳 Design Lab） -->
-    <header class="db-topbar">
-      <div class="db-brand">
-        <div class="db-logo" aria-hidden="true">M</div>
-        <div class="db-brand-text">
-          <div class="db-title">MYMEMO</div>
-          <div class="db-subtitle">个人数字空间 · 时间管理工作台</div>
-        </div>
-      </div>
+    <!-- ===== 正式 MYMEMO Dashboard 主玻璃面板（mirror Design Lab preview-app-inner） ===== -->
+    <section class="db-glass" aria-label="MYMEMO Dashboard">
+      <!-- ============== 左侧 Sidebar（56px）：MYMEMO 导航标识 + 模块 nav ============== -->
+      <aside class="db-sidebar" aria-label="主导航">
+        <img class="db-logo" src="/favicon.png" alt="MYMEMO" draggable="false" />
 
-      <nav class="db-actions" aria-label="开发入口">
-        <RouterLink to="/design-lab" class="dev-entry" title="Design Lab（独立视觉调试工具）">
-          <svg class="dev-ic" aria-hidden="true" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <nav class="db-nav" aria-label="模块导航">
+          <RouterLink
+            to="/"
+            class="db-nav-item active"
+            aria-label="Calendar（当前模块）"
+            title="Calendar"
+          >
+            📅
+          </RouterLink>
+          <div
+            class="db-nav-item"
+            aria-disabled="true"
+            title="Todo（开发中）"
+          >
+            ⏰
+          </div>
+          <div
+            class="db-nav-item"
+            aria-disabled="true"
+            title="Inspiration（开发中）"
+          >
+            💡
+          </div>
+        </nav>
+
+        <!-- 底部：Design Lab 小入口胶囊（保留原来 Dashboard 的 dev-entry 位置，整合到 Sidebar 底） -->
+        <RouterLink
+          to="/design-lab"
+          class="db-dsl-entry"
+          title="Design Lab（视觉调试）"
+        >
+          <svg class="db-dsl-ic" aria-hidden="true" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="13.5" cy="6.5" r=".5"/>
             <circle cx="17.5" cy="10.5" r=".5"/>
             <circle cx="8.5" cy="7.5" r=".5"/>
@@ -38,227 +128,342 @@ import BaseCard from '@/components/base/BaseCard.vue'
             <path d="M12 2a10 10 0 0 0-7.07 17.07A10 10 0 1 0 12 2z"/>
             <path d="M12 22C9 18 6 14 6 12c0-3 2.5-5 6-5s6 2 6 5c0 2-3 6-6 10z"/>
           </svg>
-          <span>Design Lab</span>
         </RouterLink>
-      </nav>
-    </header>
+      </aside>
 
-    <!-- Dashboard 主区：暂时只渲染一张 MYMEMO 欢迎卡 + 模块占位。
-         正式 Calendar / Memo 集成阶段再填充真实业务模块卡。 -->
-    <main class="db-grid">
-      <section class="db-col-main">
-        <BaseCard padding="lg" class="db-welcome-card">
-          <div class="db-card-head">
-            <div>
-              <div class="db-card-title">MYMEMO · Dashboard</div>
-              <div class="db-card-sub">
-                这里是真正的 MYMEMO 主程序。
-                当前阶段：视觉系统与底层数据已就绪，
-                Calendar / Memo / 其他功能模块将在集成阶段陆续嵌入此处。
+      <!-- ============== 右侧主内容区 ============== -->
+      <main class="db-content">
+        <!-- ---------- Head：日期 + 问候语（参考 Design Lab pv-date / pv-greet） ---------- -->
+        <div class="db-head">
+          <div class="db-date">{{ dateText }}</div>
+          <div class="db-greet">{{ greetingText }}</div>
+        </div>
+
+        <!-- ---------- 统计 chip 行（参考 Design Lab pv-row + pv-chip；真实今日事件数替换"待办"的值以接真实数据；其余保留 Preview 静态） ---------- -->
+        <div class="db-chips">
+          <BaseCard v-for="c in statChips" :key="c.tag" padding="md" class="db-chip">
+            <div class="chip-title">{{ c.tag }}</div>
+            <div class="chip-val" :style="{ color: c.accent }">
+              {{ c.tag === '今日完成' ? todayCountChip : c.value }}
+            </div>
+          </BaseCard>
+        </div>
+
+        <!-- ---------- 今日事件（参考 Design Lab pv-events；接真实 Event Store） ---------- -->
+        <div class="db-section-title">今日事件</div>
+        <div class="db-events" v-if="eventsForToday.length">
+          <div
+            v-for="e in eventsForToday"
+            :key="e.id"
+            class="db-event"
+            :style="{ '--c': typeColorByType[e.type] ?? 'var(--color-text-tertiary)' }"
+          >
+            <span class="db-event-dot"></span>
+            <div class="db-event-body">
+              <div class="db-event-title">{{ e.title }}</div>
+              <div class="db-event-meta">
+                {{ typeLabelByType[e.type] ?? e.type }} · {{ dayEventTimeLabel(e, todayKey) }}
               </div>
             </div>
+            <BaseBadge :color="typeColorByType[e.type] ?? 'var(--color-text-tertiary)'">
+              {{ typeLabelByType[e.type] ?? e.type }}
+            </BaseBadge>
           </div>
+        </div>
+        <div v-else class="db-events-empty">
+          <span class="db-empty-ic">·</span>
+          <span>今天还没有事件，保持轻松的一天吧。</span>
+        </div>
 
-          <div class="db-module-grid">
-            <RouterLink to="/calendar" class="db-module-slot db-module-slot--soft">
-              <div class="db-module-tag">Calendar</div>
-              <div class="db-module-title">日历独立开发单元</div>
-              <div class="db-module-desc">
-                当前在 /calendar 独立调试。
-                集成阶段再把正式模块嵌入此处。
-              </div>
-            </RouterLink>
-
-            <RouterLink to="/data-test" class="db-module-slot">
-              <div class="db-module-tag">Dev</div>
-              <div class="db-module-title">数据持久化验证</div>
-              <div class="db-module-desc">
-                Pinia / Service / Repository / IndexedDB 数据链路自检入口。
-              </div>
-            </RouterLink>
-          </div>
-        </BaseCard>
-      </section>
-    </main>
+        <!-- ---------- Calendar 正式模块（核心内容；复用 @calendar/CalendarView，embedded 模式去掉外层 BaseCard） ---------- -->
+        <div class="db-section-title db-cal-title">
+          <span>日历</span>
+          <RouterLink to="/calendar" class="db-cal-link" title="打开 Calendar 独立调试页">独立页</RouterLink>
+        </div>
+        <div class="db-cal-wrap">
+          <CalendarView embedded />
+        </div>
+      </main>
+    </section>
   </div>
 </template>
 
 <style scoped>
-/* —— 所有视觉参数全部走 tokens.css 语义化 Design Token，零硬编码色 —— */
+/* ============ 所有视觉参数全部走 tokens.css 语义化 Design Token，零硬编码色 ============ */
 .dashboard-root {
   position: relative;
   width: 100%;
   min-height: 100%;
-  padding: var(--space-5) var(--space-6);
+  padding: var(--space-5);
   box-sizing: border-box;
-  display: flex;
-  flex-direction: column;
-  align-items: stretch;
-  gap: var(--space-5);
-}
-
-/* 顶部栏 */
-.db-topbar {
-  width: 100%;
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-4);
-}
-.db-brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.db-logo {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
-  background: var(--gradient-primary);
-  color: white;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: var(--font-bold);
-  font-size: 18px;
-  box-shadow: 0 4px 12px color-mix(in srgb, var(--color-primary) 24%, transparent);
-}
-.db-title {
-  font-size: var(--text-base);
-  font-weight: var(--font-bold);
-  color: var(--color-text-primary);
-  letter-spacing: 0.02em;
-  line-height: 1.1;
-}
-.db-subtitle {
-  margin-top: 2px;
-  font-size: 11px;
-  color: var(--color-text-tertiary);
-  letter-spacing: 0.01em;
 }
 
-/* 右上角开发入口胶囊：保持和 DSL Preview 同款，作为「开发阶段」的视觉通道 */
-.dev-entry {
+/* —— 主玻璃面板：严格镜像 Design Lab preview-app-inner（玻璃表面、阴影、圆角、overflow）—— */
+.db-glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
+  width: min(100%, var(--app-width, 960px));
+  min-height: calc(100vh - 2 * var(--space-5));
+  max-height: calc(100vh - 2 * var(--space-5));
+  border-radius: var(--glass-radius);
+  display: flex;
+  overflow: hidden;
+}
+
+/* =================================== 左侧 Sidebar（56px） =================================== */
+.db-sidebar {
+  width: 56px;
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  border-right: 1px solid var(--surface-border);
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--color-primary) 2%, transparent);
+}
+.db-logo {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  object-fit: cover;
+  object-position: center center;
+  display: block;
+  margin-bottom: 8px;
+  user-select: none;
+  -webkit-user-drag: none;
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  flex-shrink: 0;
+}
+.db-nav {
+  display: contents;   /* 让 nav-item 直接继承 sidebar 的 flex 列布局 + gap */
+}
+.db-nav-item {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 16px;
+  opacity: 0.5;
+  cursor: pointer;
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+.db-nav-item:hover {
+  opacity: 0.85;
+  background: var(--glass-bg-hover);
+  transform: translateY(-1px);
+}
+.db-nav-item.active {
+  opacity: 1;
+  background: var(--surface-bg);
+  cursor: default;
+  box-shadow:
+    inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 14%, transparent),
+    0 2px 6px color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+.db-nav-item[aria-disabled="true"] {
+  cursor: not-allowed;
+}
+/* 底部 Design Lab 入口小胶囊：固定到 sidebar 底部 */
+.db-dsl-entry {
+  margin-top: auto;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
   display: inline-flex;
   align-items: center;
-  gap: 6px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--color-primary) 18%, transparent);
-  background: color-mix(in srgb, var(--color-primary) 5%, var(--glass-bg));
-  backdrop-filter: blur(var(--glass-blur));
+  justify-content: center;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 20%, transparent);
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
   color: var(--color-primary);
-  font-size: 11px;
-  font-weight: var(--font-semibold);
   text-decoration: none;
-  letter-spacing: 0.03em;
   transition:
     background var(--duration-fast) var(--ease-out),
     transform var(--duration-fast) var(--ease-out),
     box-shadow var(--duration-fast) var(--ease-out);
 }
-.dev-entry:hover {
+.db-dsl-entry:hover {
   background: var(--glass-bg-hover);
   transform: translateY(-1px);
   box-shadow: 0 2px 8px color-mix(in srgb, var(--color-primary) 16%, transparent);
 }
-.dev-ic { flex: 0 0 auto; display: block; }
-
-/* 主网格：当前单列居中，后续集成时改成双列 grid-template-columns 即可 */
-.db-grid {
-  width: 100%;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
-  gap: var(--space-5);
-  align-items: start;
-  justify-items: center;
+.db-dsl-ic {
+  flex: 0 0 auto;
+  display: block;
 }
-.db-col-main {
-  width: 100%;
-  max-width: var(--app-width);
+
+/* =================================== 右侧主内容区 =================================== */
+.db-content {
+  flex: 1;
+  padding: 24px;
+  overflow-y: auto;
   min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
 }
 
-/* 欢迎卡 */
-.db-welcome-card {
-  width: 100%;
+/* ---------- Head：日期 + 问候语（pv-date / pv-greet） ---------- */
+.db-head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
 }
-.db-card-head {
-  margin-bottom: var(--space-5);
+.db-date {
+  font-size: 12px;
+  color: var(--color-text-tertiary);
 }
-.db-card-title {
-  font-size: var(--text-xl);
-  font-weight: var(--font-bold);
+.db-greet {
+  font-size: 18px;
+  font-weight: var(--font-semibold);
+  color: var(--color-text-primary);
+  line-height: 1.4;
   background: var(--gradient-text);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
-  letter-spacing: 0.02em;
-  line-height: 1.2;
-}
-.db-card-sub {
-  margin-top: var(--space-2);
-  font-size: var(--text-sm);
-  color: var(--color-text-secondary);
-  line-height: 1.7;
-  max-width: 56ch;
 }
 
-/* 模块占位网格：两个 1:1 slot（等视觉集成时再换成真实模块） */
-.db-module-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: var(--space-4);
-}
-.db-module-slot {
+/* ---------- 统计 chip 行（pv-row / pv-chip；一行 3 个卡片） ---------- */
+.db-chips {
   display: flex;
-  flex-direction: column;
-  gap: 6px;
-  padding: var(--space-4);
-  border-radius: var(--surface-radius);
-  border: 1px solid var(--glass-border);
-  background: var(--surface-bg);
-  color: inherit;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+.db-chip {
+  flex: 1;
+  min-width: 100px;
+}
+.chip-title {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}
+.chip-val {
+  font-size: 22px;
+  font-weight: var(--font-bold);
+  color: var(--color-text-primary);
+  margin-top: 2px;
+  line-height: 1.1;
+}
+
+/* ---------- section title（pv-section-title） ---------- */
+.db-section-title {
+  font-size: 11px;
+  letter-spacing: 1px;
+  color: var(--color-text-tertiary);
+  font-weight: var(--font-semibold);
+  margin-bottom: -6px;   /* 抵消父容器 gap 的一半，让内容紧贴标题 */
+}
+.db-cal-title {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.db-cal-link {
+  font-size: 10px;
+  letter-spacing: 0.03em;
+  color: var(--color-primary);
   text-decoration: none;
-  transition:
-    transform var(--duration-fast) var(--ease-out),
-    background var(--duration-fast) var(--ease-out),
-    border-color var(--duration-fast) var(--ease-out),
-    box-shadow var(--duration-fast) var(--ease-out);
-}
-.db-module-slot:hover {
-  transform: translateY(-2px);
-  background: var(--glass-bg-hover);
-  border-color: var(--glass-border-hover);
-  box-shadow: var(--glass-shadow);
-}
-.db-module-slot--soft {
-  border-color: color-mix(in srgb, var(--color-accent) 28%, transparent);
-}
-.db-module-tag {
-  align-self: flex-start;
   padding: 2px 8px;
   border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--color-primary) 18%, transparent);
+  background: color-mix(in srgb, var(--color-primary) 6%, transparent);
+  opacity: 0.85;
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
+}
+.db-cal-link:hover {
+  opacity: 1;
   background: color-mix(in srgb, var(--color-primary) 10%, transparent);
-  color: var(--color-primary);
-  font-size: 10px;
-  font-weight: var(--font-semibold);
-  letter-spacing: 0.06em;
-}
-.db-module-title {
-  font-size: var(--text-sm);
-  font-weight: var(--font-semibold);
-  color: var(--color-text-primary);
-}
-.db-module-desc {
-  font-size: 12px;
-  line-height: 1.7;
-  color: var(--color-text-secondary);
 }
 
+/* ---------- 今日事件列表（pv-events）：真实 Event Store 数据 ---------- */
+.db-events {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.db-event {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  padding: 12px;
+  background: var(--surface-bg);
+  border: 1px solid var(--surface-border);
+  border-radius: 12px;
+  border-left: 3px solid var(--c);
+}
+.db-event-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--c);
+  margin-top: 3px;
+  flex-shrink: 0;
+}
+.db-event-body {
+  flex: 1;
+  min-width: 0;
+}
+.db-event-title {
+  font-size: 13px;
+  font-weight: var(--font-medium);
+  color: var(--color-text-primary);
+}
+.db-event-meta {
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+  margin-top: 2px;
+}
+.db-events-empty {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 12px;
+  background: color-mix(in srgb, var(--surface-bg) 60%, transparent);
+  border: 1px dashed var(--glass-border);
+  border-radius: 12px;
+  font-size: 12px;
+  color: var(--color-text-secondary);
+}
+.db-empty-ic {
+  color: var(--color-text-tertiary);
+  opacity: 0.7;
+  font-size: 16px;
+  line-height: 1;
+}
+
+/* ---------- Calendar 正式模块容器（宽度占满 content；CalendarView embedded 模式自身宽 100%） ---------- */
+.db-cal-wrap {
+  width: min(100%, 620px);
+  align-self: flex-start;   /* 不要拉伸 Calendar 到整个面板宽度，保持合适月历尺寸；左对齐 */
+}
+
+/* ---------- 响应式：小屏压缩 gap / padding ---------- */
 @media (max-width: 680px) {
-  .db-module-grid {
-    grid-template-columns: minmax(0, 1fr);
+  .dashboard-root { padding: var(--space-4); }
+  .db-glass {
+    min-height: calc(100vh - 2 * var(--space-4));
+    max-height: calc(100vh - 2 * var(--space-4));
+    border-radius: calc(var(--glass-radius) - 4px);
   }
+  .db-content { padding: 16px; gap: 14px; }
+  .db-cal-wrap { width: 100%; }
+  .db-chips { gap: 8px; }
+  .db-chip { min-width: 80px; }
+  .chip-val { font-size: 18px; }
 }
 </style>
