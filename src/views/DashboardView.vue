@@ -190,18 +190,26 @@ onMounted(() => {
 
 <style scoped>
 /* ============ 所有视觉参数全部走 tokens.css 语义化 Design Token，零硬编码色 ============ */
+/*
+ * 布局层级严格镜像 Design Lab 的 preview-app → preview-app-inner → preview-content：
+ *   外层 .dashboard-root（对应 preview-app，36px 外层留白，flex 居中）
+ *     内层 .db-glass（对应 preview-app-inner，height: 84vh，不占满整屏，居中后再 8% 上下留白）
+ *       侧栏 .db-sidebar（对应 preview-sidebar）
+ *       主区 .db-content（对应 preview-content，padding:20px）
+ *         内容 .db-head/.db-chips/.db-events/.db-cal-wrap（对应 pv-dashboard，gap:16px）
+ */
 .dashboard-root {
   position: relative;
   width: 100%;
-  min-height: 100%;
-  padding: var(--space-5);
+  min-height: 100vh;
+  padding: 36px;                               /* 对应 preview-app { padding: 36px } */
   box-sizing: border-box;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
-/* —— 主玻璃面板：严格镜像 Design Lab preview-app-inner（玻璃表面、阴影、圆角、overflow）—— */
+/* —— 主玻璃面板：严格镜像 Design Lab preview-app-inner（玻璃表面、阴影、圆角、overflow、height:84%）—— */
 .db-glass {
   background: var(--glass-bg);
   backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
@@ -209,14 +217,15 @@ onMounted(() => {
   border: 1px solid var(--glass-border);
   box-shadow: var(--glass-shadow), var(--glass-highlight);
   width: min(100%, var(--app-width, 960px));
-  min-height: calc(100vh - 2 * var(--space-5));
-  max-height: calc(100vh - 2 * var(--space-5));
+  max-width: calc(100% - 0px);                      /* 外层已有 36px padding，此处直接用容器宽度 */
+  min-width: 360px;
+  height: min(84vh, 820px);                         /* 对应 preview-app-inner { height: 84% } → 两层叠加后约 8% 上 + 8% 下留白 */
   border-radius: var(--glass-radius);
   display: flex;
   overflow: hidden;
 }
 
-/* =================================== 左侧 Sidebar（56px） =================================== */
+/* =================================== 左侧 Sidebar（56px，镜像 preview-sidebar） =================================== */
 .db-sidebar {
   width: 56px;
   padding: 12px;
@@ -303,15 +312,15 @@ onMounted(() => {
   display: block;
 }
 
-/* =================================== 右侧主内容区 =================================== */
+/* =================================== 右侧主内容区（镜像 preview-content padding:20px） =================================== */
 .db-content {
   flex: 1;
-  padding: 24px;
+  padding: 20px;                                   /* 对应 preview-content { padding: 20px } */
   overflow-y: auto;
   min-width: 0;
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;                                       /* 对应 pv-dashboard { gap: 16px } */
 }
 
 /* ---------- Head：日期 + 问候语（pv-date / pv-greet） ---------- */
@@ -357,16 +366,16 @@ onMounted(() => {
   line-height: 1.1;
 }
 
-/* ---------- section title（pv-section-title） ---------- */
+/* ---------- section title（严格镜像 pv-section-title：margin-top/bottom 8px，不用负值） ---------- */
 .db-section-title {
   font-size: 11px;
   letter-spacing: 1px;
   color: var(--color-text-tertiary);
   font-weight: var(--font-semibold);
-  margin-bottom: -6px;   /* 抵消父容器 gap 的一半，让内容紧贴标题 */
+  margin-top: 8px;                                /* 对应 pv-section-title { margin-top: 8px; margin-bottom: 8px } */
+  margin-bottom: 8px;
 }
 .db-cal-title {
-  margin-top: 4px;
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -452,12 +461,11 @@ onMounted(() => {
   align-self: flex-start;   /* 不要拉伸 Calendar 到整个面板宽度，保持合适月历尺寸；左对齐 */
 }
 
-/* ---------- 响应式：小屏压缩 gap / padding ---------- */
+/* ---------- 响应式：小屏压缩 gap / padding；DSL 逻辑对齐 ---------- */
 @media (max-width: 680px) {
-  .dashboard-root { padding: var(--space-4); }
+  .dashboard-root { padding: var(--space-4); min-height: 100vh; }
   .db-glass {
-    min-height: calc(100vh - 2 * var(--space-4));
-    max-height: calc(100vh - 2 * var(--space-4));
+    height: 88vh;
     border-radius: calc(var(--glass-radius) - 4px);
   }
   .db-content { padding: 16px; gap: 14px; }

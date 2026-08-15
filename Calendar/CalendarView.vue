@@ -69,10 +69,20 @@ function goToday() {
 }
 
 const calOptions = {
-  view: 'month' as const,
-  hideViews: true,
-  disableMonthEventOrganizer: true,
-  weeksStartOnMonday: true,
+  // ⚠️ Vue Cal 4.10.2 真正的根组件视图 prop 是 activeView，不是 view！
+  //    默认值 activeView = "week"（周视图，00:00~23:00 按小时大格子）
+  //    之前传 view: 'month' 完全没命中，这就是导致"大方格时间轴"的根本原因。
+  activeView: 'month' as const,
+  // 隐藏 Vue Cal 内置视图选择器（8 个按钮：年/本年/月/周/日 等）的 prop 名也是 hideViewSelector，不是 hideViews。
+  // 我们另外还通过 .vuecal__header { display:none } 硬隐藏；此处 prop 层面也再禁用一层。
+  hideViewSelector: true,
+  // 周起始日正确 prop：startWeekOnSunday=false 即「周一」为首列，对应你图2的 一 二 三 四 五 六 日。
+  // Vue Cal 4.x 默认值就是 false（周一开始），此处显式传是为了避免语义歧义。
+  startWeekOnSunday: false,
+  // —— 以下是 MYMEMO 自定义辅助参数（Vue Cal 会忽略未知 prop）——
+  // cellHeight 与 spacing 目前不被 Vue Cal 4.x 根组件消费；我们已通过 .vuecal__body { gap: var(--space-2) }
+  // 和 .vuecal__cell { min-height: var(--cal-cell-h, 56px) } 自定义 CSS 变量实现相同效果。
+  // 此处保留仅作为可读性说明：理想月历 cell 高度 56px、网格横竖向 gap 6px。
   cellHeight: 56,
   spacing: 6,
 }
@@ -359,16 +369,16 @@ onMounted(() => {
 </template>
 
 <style scoped>
-/* ============ Calendar 嵌入 Dashboard 时的布局 ============ */
+/* ============ Calendar 嵌入 Dashboard 时的布局（更紧凑） ============ */
 .cal-embedded {
   width: 100%;
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 8px;                          /* 原 12px → 8px，和缩小后的月历更协调 */
 }
 .cal-header--embedded {
   justify-content: flex-end;
-  margin-bottom: 4px;
+  margin-bottom: 2px;                 /* 原 4px → 2px */
 }
 
 /* ============ 独立页尺寸 ============ */
@@ -380,15 +390,15 @@ onMounted(() => {
   justify-content: center;
 }
 .calendar-wrap {
-  width: min(100%, 620px);
+  width: min(100%, 520px);            /* 原 620px → 520px，整体收窄让它更"小巧精致"，对齐图2宽度 */
 }
 
-/* —— 头部：Axolotl Dashboard 风格 —— */
+/* —— 头部：Axolotl Dashboard 风格（尺寸收紧） —— */
 .cal-header {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 10px;
+  margin-bottom: 6px;                 /* 原 10px → 6px */
 }
 .cal-nav-left {
   display: flex;
@@ -402,7 +412,7 @@ onMounted(() => {
   display: block;
 }
 .cal-title-label {
-  font-size: var(--text-base);
+  font-size: 13px;                    /* 原 text-base(≈14px) → 13px，缩小 */
   font-weight: var(--font-semibold);
   color: var(--color-text-primary);
   letter-spacing: 0.01em;
@@ -410,28 +420,36 @@ onMounted(() => {
 .cal-nav-right {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 2px;                          /* 原 4px → 2px */
 }
 .cal-today-btn {
-  margin-left: 6px;
-  font-size: 11px;
-  padding: 2px 8px !important;
+  margin-left: 4px;                   /* 原 6px → 4px */
+  font-size: 10px;                    /* 原 11px → 10px */
+  padding: 2px 7px !important;
   color: var(--color-primary);
   border: 1px solid color-mix(in srgb, var(--color-primary) 20%, transparent);
   border-radius: 999px;
 }
 .cal-title {
-  min-width: 90px;
+  min-width: 78px;                    /* 原 90px → 78px，字号缩了就不用那么宽 */
   text-align: center;
-  font-size: 13px;
+  font-size: 12px;                    /* 原 13px → 12px */
   font-weight: var(--font-semibold);
   color: var(--color-text-primary);
   letter-spacing: 0.02em;
   user-select: none;
 }
 
-/* —— Vue Cal 皮肤覆盖：默认"日历表格式" → MYMEMO 月历 Picker 风格 —— */
+/*
+ * ====== .mymemo-cal：纸面留白日历 ======
+ * 日历本体保持透明，让宿主的暖白/玻璃背景自然露出；日期的排版、列宽和行间距
+ * 负责建立结构，只有选中日和 Today 才使用轻量的强调底色。
+ */
 .mymemo-cal {
+  background: transparent;
+  border: none;
+  padding: 0;
+  /* —— Vue Cal CSS 变量：清除默认表格皮肤 —— */
   --vc-color: var(--color-text-primary);
   --vc-background-color: transparent;
   --vc-border: none;
@@ -447,137 +465,182 @@ onMounted(() => {
   --vc-selected-background-color: transparent;
   --vc-today-color: var(--color-text-primary);
   --vc-today-background-color: transparent;
+  /* —— 由留白构成的月历节奏 —— */
+  --cal-cell-h: 46px;
 }
-.mymemo-cal :deep(.vuecal) {
-  background: transparent;
-  border: none;
-  box-shadow: none;
+
+/* —— Vue Cal 默认容器：透明、无边框、无阴影 —— */
+.mymemo-cal :deep(.vuecal),
+.mymemo-cal :deep(.vuecal__flex),
+.mymemo-cal :deep(.vuecal__body),
+.mymemo-cal :deep(.vuecal__bg),
+.mymemo-cal :deep(.vuecal__cells),
+.mymemo-cal :deep(.vuecal__weekdays-headings) {
+  background: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  border-radius: 0 !important;
+  box-shadow: none !important;
+  outline: none !important;
 }
-.mymemo-cal :deep(.vuecal__toolbar) { display: none; }
-.mymemo-cal :deep(.vuecal__weekdays) {
-  padding: 0 0 8px 0;
-  border-bottom: none;
+
+/* —— Vue Cal 默认工具栏彻底隐藏 —— */
+.mymemo-cal :deep(.vuecal__header) {
+  display: none !important;
 }
+.mymemo-cal :deep(.vuecal-toolbar),
+.mymemo-cal :deep([class*="vuecal"][class*="header" i]) {
+  display: none !important;
+}
+
+/* —— 星期标题：只保留轻微的字面层级，不画底线 —— */
+.mymemo-cal :deep(.vuecal__weekdays-headings) {
+  margin-bottom: 8px !important;
+  padding: 0 !important;
+  border: none !important;
+  border-bottom: none !important;
+}
+.mymemo-cal :deep(.vuecal__heading),
 .mymemo-cal :deep(.vuecal__weekdays-cell) {
-  background: transparent;
-  border: none;
+  background: transparent !important;
+  border: none !important;
   color: var(--color-text-tertiary);
   font-size: 10px;
   font-weight: var(--font-semibold);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  text-transform: none;
+  box-shadow: none !important;
+  padding: 0 !important;
 }
-.mymemo-cal :deep(.vuecal__body) {
-  gap: var(--space-2);
+
+/* —— 42 格主体：用行高与列宽形成秩序，不用格线 —— */
+.mymemo-cal :deep(.vuecal__cells) {
+  gap: 0 !important;
+  background: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 .mymemo-cal :deep(.vuecal__cell) {
-  background: transparent;
-  border: none;
-  min-height: var(--cal-cell-h, 56px);
+  background: transparent !important;
+  background-image: none !important;
+  border: none !important;
+  box-shadow: none !important;
+  min-height: var(--cal-cell-h, 46px) !important;
   position: relative;
-  padding: 0;
+  padding: 0 !important;
+  border-radius: 0 !important;
+}
+.mymemo-cal :deep(.vuecal__cell::before) {
+  display: none !important;
+  border: none !important;
+}
+.mymemo-cal :deep(.vuecal__cell--today),
+.mymemo-cal :deep(.vuecal__cell--current),
+.mymemo-cal :deep(.vuecal__cell--selected),
+.mymemo-cal :deep(.vuecal__cell--highlighted) {
+  background: transparent !important;
 }
 .mymemo-cal :deep(.vuecal__cell-content) {
   display: flex;
   align-items: center;
   justify-content: center;
   height: 100%;
-  padding: 4px 0;
+  padding: 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
 }
 
-/* —— 自定义 pill：选中渐变 / Today 暖环 / 灰色跨月字 —— */
+/* —— 日期数字：默认无底色，用排版和留白建立月历结构 —— */
 .vc-cell-inner {
   width: 100%;
   height: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: flex-start;
-  padding-top: 2px;
+  justify-content: center;
+  padding-top: 0;
   gap: 3px;
 }
 .vc-day-num {
   position: relative;
   width: 32px;
-  height: 32px;
+  height: 30px;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   border-radius: 10px;
-  font-size: 13px;
+  font-size: 12px;
   font-weight: var(--font-medium);
+  background: transparent;
   color: var(--color-text-primary);
   user-select: none;
   transition:
     background var(--duration-fast) var(--ease-out),
     color var(--duration-fast) var(--ease-out),
-    transform var(--duration-fast) var(--ease-out);
+    transform var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
 }
 .vc-day-num:hover {
-  background: var(--surface-bg);
-  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--color-accent) 10%, transparent);
 }
+/* —— 跨月日期：降低存在感，但不制造另一层格子 —— */
 .vc-day-num.is-weekday-outside {
-  color: var(--color-text-tertiary);
-  opacity: 0.55;
+  color: var(--color-text-placeholder);
+  opacity: 0.72;
 }
-/* Today：暖色描边圆环 */
+/* —— Today：单点强调，不恢复整格背景 —— */
 .vc-day-num.is-today {
-  box-shadow:
-    inset 0 0 0 2px var(--color-accent),
-    0 0 0 4px color-mix(in srgb, var(--color-accent) 12%, transparent);
-  color: var(--color-accent);
+  background: var(--color-accent);
+  color: var(--color-text-on-gradient);
   font-weight: var(--font-bold);
+  box-shadow: 0 2px 5px color-mix(in srgb, var(--color-accent) 20%, transparent);
 }
 .vc-day-num.is-today:hover {
-  background: color-mix(in srgb, var(--color-accent) 6%, transparent);
+  background: color-mix(in srgb, var(--color-accent) 88%, black);
 }
-/* 选中：渐变 pill */
+/* —— 选中：柔和底色 + 细边界，仅突出当前操作目标 —— */
 .vc-day-num.is-selected {
-  background: var(--gradient-primary);
-  color: white;
-  font-weight: var(--font-bold);
-  box-shadow:
-    0 2px 8px color-mix(in srgb, var(--color-primary) 30%, transparent),
-    0 0 0 3px color-mix(in srgb, var(--color-primary) 15%, transparent);
-  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--color-accent) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-accent) 45%, transparent);
+  color: var(--color-text-primary);
+  font-weight: var(--font-semibold);
 }
-/* Today + 选中叠加：渐变 + 外暖光环 */
+/* —— Today 同时被选中：Today 的实心强调优先 —— */
 .vc-day-num.is-today.is-selected {
-  box-shadow:
-    0 2px 8px color-mix(in srgb, var(--color-primary) 30%, transparent),
-    0 0 0 3px color-mix(in srgb, var(--color-primary) 15%, transparent),
-    inset 0 0 0 1px color-mix(in srgb, white 30%, transparent),
-    0 0 0 6px color-mix(in srgb, var(--color-accent) 14%, transparent);
+  background: var(--color-accent);
+  border-color: transparent;
+  color: var(--color-text-on-gradient);
 }
 
-/* 事件 indicator：pill 下方 1–3 个小圆点 */
+/* —— 事件 indicator：日期下方 1–3 个小圆点 —— */
 .vc-indicators {
   display: flex;
   gap: 3px;
   align-items: center;
   justify-content: center;
-  height: 8px;
+  height: 6px;                        /* 原 8px → 6px */
 }
 .vc-dot {
-  width: 6px;
-  height: 6px;
+  width: 4px;
+  height: 4px;
   border-radius: 50%;
   display: block;
   flex: 0 0 auto;
 }
 .vc-cell-inner:has(.vc-day-num.is-selected) .vc-dot {
-  box-shadow: 0 0 0 1px color-mix(in srgb, white 60%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 22%, transparent);
 }
 
-/* —— 选中日期当天事件列表 —— */
+/* —— 选中日期当天事件列表（整体收紧，和小日历视觉对齐）—— */
 .day-events {
-  margin-top: 12px;
-  padding-top: 12px;
-  border-top: 1px dashed var(--glass-border);
+  margin-top: 8px;                    /* 原 12px → 8px */
+  padding-top: 8px;                   /* 原 12px → 8px */
+  border-top: 1px dashed color-mix(in srgb, var(--color-accent) 22%, var(--glass-border));
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;                           /* 原 10px → 6px */
 }
 .day-events-head {
   display: flex;
@@ -585,49 +648,49 @@ onMounted(() => {
   justify-content: space-between;
 }
 .day-events-date {
-  font-size: var(--text-sm);
+  font-size: 12px;                    /* 原 text-sm≈13px → 12px */
   font-weight: var(--font-semibold);
   color: var(--color-text-primary);
 }
 .day-events-weekday {
-  margin-left: 6px;
+  margin-left: 5px;                   /* 原 6px → 5px */
   color: var(--color-text-tertiary);
   font-weight: var(--font-medium);
-  font-size: 11px;
+  font-size: 10px;                    /* 原 11px → 10px */
 }
 .day-events-count {
-  font-size: 11px;
+  font-size: 10px;                    /* 原 11px → 10px */
   font-weight: var(--font-semibold);
   color: var(--color-primary);
   background: color-mix(in srgb, var(--color-primary) 8%, transparent);
-  padding: 2px 8px;
+  padding: 1.5px 7px;                 /* 原 2px 8px → 1.5px 7px */
   border-radius: 999px;
 }
 .day-events-list {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 5px;                           /* 原 6px → 5px */
 }
 .day-event-row {
   display: flex;
   align-items: center;
-  gap: 10px;
-  padding: 8px 10px;
-  border-radius: 10px;
+  gap: 8px;                           /* 原 10px → 8px */
+  padding: 6px 8px;                   /* 原 8px 10px → 6px 8px，收窄行高 */
+  border-radius: 8px;                 /* 原 10px → 8px */
   background: var(--surface-bg);
   border: 1px solid var(--surface-border);
-  font-size: 12px;
+  font-size: 11px;                    /* 原 12px → 11px */
 }
 .day-event-type-dot {
-  width: 7px;
-  height: 7px;
+  width: 5px;                         /* 原 7px → 5px */
+  height: 5px;
   border-radius: 50%;
   flex: 0 0 auto;
 }
 .day-event-time {
   color: var(--color-text-tertiary);
-  font-size: 11px;
-  min-width: 78px;
+  font-size: 10px;                    /* 原 11px → 10px */
+  min-width: 68px;                    /* 原 78px → 68px */
   font-variant-numeric: tabular-nums;
 }
 .day-event-title {
@@ -642,19 +705,26 @@ onMounted(() => {
 .day-events-empty {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   color: var(--color-text-tertiary);
-  font-size: 12px;
-  padding: 8px 2px;
+  font-size: 11px;                    /* 原 12px → 11px */
+  padding: 6px 2px;                   /* 原 8px 2px → 6px 2px */
 }
 .empty-icon {
   color: var(--color-text-tertiary);
   opacity: 0.7;
-  font-size: 16px;
+  font-size: 14px;                    /* 原 16px → 14px */
   line-height: 1;
 }
 
+/* —— 小屏 (<520px) 进一步压缩 —— */
 @media (max-width: 520px) {
-  .vc-day-num { width: 28px; height: 28px; font-size: 12px; border-radius: 8px; }
+  .calendar-wrap { width: 100%; }
+  .mymemo-cal { --cal-cell-h: 40px; }
+  .vc-day-num { width: 28px; height: 28px; font-size: 11px; border-radius: 9px; }
+  .mymemo-cal :deep(.vuecal__heading),
+  .mymemo-cal :deep(.vuecal__weekdays-cell) { font-size: 9px !important; }
+  .vc-dot { width: 3px; height: 3px; }
+  .vc-indicators { gap: 1.5px; height: 5px; }
 }
 </style>
