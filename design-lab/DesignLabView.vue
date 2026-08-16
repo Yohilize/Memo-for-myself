@@ -1,10 +1,13 @@
 <script setup lang="ts">
-import { ref, computed, onBeforeUnmount } from 'vue'
+import { ref, computed, onBeforeUnmount, watch as vueWatch } from 'vue'
+import dayjs from 'dayjs'
 import BaseButton from '@/components/base/BaseButton.vue'
 import BaseCard from '@/components/base/BaseCard.vue'
 import BaseInput from '@/components/base/BaseInput.vue'
 import BaseBadge from '@/components/base/BaseBadge.vue'
 import BaseSlider from '@/components/base/BaseSlider.vue'
+import DashboardView from '@/views/DashboardView.vue'
+import { useFixedBackgroundStore } from '@/stores'
 import {
   state,
   PRESETS,
@@ -16,6 +19,8 @@ import {
   getWallpaper,
   exportTokensAsCss,
   resetWallpaperTransform,
+  saveCurrentBackgroundAsFixed,
+  loadFixedAsTemp,
 } from './useTokenControls'
 
 // ========== Tab ==========
@@ -33,6 +38,46 @@ const tabs: { key: TabKey; label: string }[] = [
 // ========== 组件预览 ==========
 type ComponentKey = 'dashboard' | 'button' | 'badge' | 'input' | 'card'
 const previewComponent = ref<ComponentKey>('dashboard')
+
+// ========== 固定背景（背景 tab 控件使用）==========
+const fbStore = useFixedBackgroundStore()
+const isSavingBackground = ref(false)
+const justFixedAt = ref<string | null>(fbStore.updatedAt)
+// 观察 fixedStore 的更新时间，当其他地方（如刷新加载）变更时同步显示
+vueWatch(
+  () => fbStore.updatedAt,
+  (t) => { if (t) justFixedAt.value = t },
+  { immediate: true },
+)
+const fixedTimeLabel = computed(() => {
+  if (!justFixedAt.value) return '尚未固定背景'
+  try {
+    return `上次固定：${dayjs(justFixedAt.value).format('MM-DD HH:mm:ss')}`
+  } catch {
+    return justFixedAt.value
+  }
+})
+
+async function onFixBackground() {
+  isSavingBackground.value = true
+  try {
+    const rec = await saveCurrentBackgroundAsFixed()
+    justFixedAt.value = rec.updatedAt
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    alert(`固定背景失败：${msg}`)
+  } finally {
+    isSavingBackground.value = false
+  }
+}
+async function onLoadFixedAsTemp() {
+  try {
+    await loadFixedAsTemp()
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e)
+    alert(`读取固定背景失败：${msg}`)
+  }
+}
 
 // ========== 壁纸 ==========
 const wallpaperUrl = computed(() => getWallpaper())
@@ -110,19 +155,6 @@ function onExport() {
   const css = exportTokensAsCss()
   navigator.clipboard.writeText(css)
   alert('CSS 变量已复制到剪贴板，粘贴到 tokens.css 即可固化')
-}
-
-const typeLabels: Record<string, string> = {
-  calendar: '日历事件',
-  deadline: 'Deadline',
-  duration: '时间块',
-  idea: '灵感',
-}
-const typeColors: Record<string, string> = {
-  calendar: 'var(--color-event-calendar)',
-  deadline: 'var(--color-event-deadline)',
-  duration: 'var(--color-event-duration)',
-  idea: 'var(--color-event-idea)',
 }
 
 // ======================== 预览区：背景图直接拖拽 & 缩放 ========================
@@ -248,153 +280,113 @@ function onStageWheel(ev: WheelEvent) {
           <!-- 中央悬浮玻璃面板（宽 = --app-width） -->
           <div class="preview-app">
             <div class="preview-app-inner" :style="{ width: state.appWidth + '%' }">
-              <!-- 左侧栏 -->
-              <aside class="preview-sidebar">
-                <img class="preview-logo" src="/favicon.png" alt="" draggable="false" />
-                <div class="preview-nav active">📅</div>
-                <div class="preview-nav">⏰</div>
-                <div class="preview-nav">💡</div>
-                <div class="preview-nav footer">⚙</div>
-              </aside>
 
-              <!-- 内容 -->
-              <main class="preview-content">
-                <!-- Dashboard -->
-                <template v-if="previewComponent === 'dashboard'">
-                  <div class="pv-dashboard">
-                    <div class="pv-date">2026年8月12日 · 星期三</div>
-                    <div class="pv-greet">下午好，今天有 3 件待办。</div>
+              <!-- ===== Dashboard：复用正式主界面 DashboardView（embedded 模式） =====
+                   embedded=true 时 DashboardView 直接输出 .db-sidebar + .db-content 两个 flex 子节点，
+                   与下方 v-else 分支中 preview-sidebar + preview-content 结构一一对应，
+                   完全复用真实 Event Store、真实 Calendar，不再使用旧的静态假数据。 -->
+              <DashboardView v-if="previewComponent === 'dashboard'" embedded />
 
-                    <div class="pv-row">
-                      <BaseCard padding="md" class="pv-chip">
-                        <div class="chip-title">待办</div>
-                        <div class="chip-val">5</div>
-                      </BaseCard>
-                      <BaseCard padding="md" class="pv-chip">
-                        <div class="chip-title">今日完成</div>
-                        <div class="chip-val">2</div>
-                      </BaseCard>
-                      <BaseCard padding="md" class="pv-chip">
-                        <div class="chip-title">灵感</div>
-                        <div class="chip-val">9</div>
-                      </BaseCard>
-                    </div>
+              <!-- ===== 其他组件预览（button/badge/input/card）：沿用 DSL 自带 mock sidebar + pv-solo ===== -->
+              <template v-else>
+                <!-- 左侧栏（mock） -->
+                <aside class="preview-sidebar">
+                  <img class="preview-logo" src="/favicon.png" alt="" draggable="false" />
+                  <div class="preview-nav active">📅</div>
+                  <div class="preview-nav">⏰</div>
+                  <div class="preview-nav">💡</div>
+                  <div class="preview-nav footer">⚙</div>
+                </aside>
 
-                    <div class="pv-section-title">今日事件</div>
-                    <div class="pv-events">
-                      <div v-for="(c, idx) in typeLabels" :key="idx" class="pv-event"
-                        :style="{ '--c': typeColors[c] }">
-                        <span class="dot"></span>
-                        <div>
-                          <div class="et">
-                            {{
-                              {calendar:'晨会', deadline:'项目方案截止',
-                                duration:'深度工作 2h', idea:'做一个时间看板'}[c] ?? '事件'
-                            }}
-                          </div>
-                          <div class="em">{{ c }} · {{{calendar:'09:00', deadline:'18:00',
-                            duration:'10:00-12:00', idea:'灵感'}[c] ?? '' }}</div>
-                        </div>
-                        <BaseBadge :color="typeColors[c]">{{ typeLabels[c] }}</BaseBadge>
+                <!-- 内容：独立组件的 solo 预览 -->
+                <main class="preview-content">
+                  <!-- Button -->
+                  <template v-if="previewComponent === 'button'">
+                    <div class="pv-solo">
+                      <div class="pv-section-title">变体</div>
+                      <div class="pv-row mb-4">
+                        <BaseButton variant="primary">Primary</BaseButton>
+                        <BaseButton variant="secondary">Secondary</BaseButton>
+                        <BaseButton variant="ghost">Ghost</BaseButton>
+                        <BaseButton variant="danger">Danger</BaseButton>
                       </div>
-                    </div>
-
-                    <div class="pv-section-title">组件</div>
-                    <div class="pv-components">
-                      <BaseButton variant="primary">主按钮</BaseButton>
-                      <BaseButton variant="secondary">次按钮</BaseButton>
-                      <BaseButton variant="ghost">文字按钮</BaseButton>
-                      <BaseInput placeholder="输入内容..." style="min-width: 180px" />
-                    </div>
-                  </div>
-                </template>
-
-                <!-- Button -->
-                <template v-else-if="previewComponent === 'button'">
-                  <div class="pv-solo">
-                    <div class="pv-section-title">变体</div>
-                    <div class="pv-row mb-4">
-                      <BaseButton variant="primary">Primary</BaseButton>
-                      <BaseButton variant="secondary">Secondary</BaseButton>
-                      <BaseButton variant="ghost">Ghost</BaseButton>
-                      <BaseButton variant="danger">Danger</BaseButton>
-                    </div>
-                    <div class="pv-section-title">尺寸</div>
-                    <div class="pv-row mb-4">
-                      <BaseButton variant="primary" size="sm">Small</BaseButton>
-                      <BaseButton variant="primary" size="md">Medium</BaseButton>
-                      <BaseButton variant="primary" size="lg">Large</BaseButton>
-                    </div>
-                    <div class="pv-section-title">状态</div>
-                    <div class="pv-row">
-                      <BaseButton variant="primary">正常</BaseButton>
-                      <BaseButton variant="primary" disabled>Disabled</BaseButton>
-                    </div>
-                  </div>
-                </template>
-
-                <!-- Badge -->
-                <template v-else-if="previewComponent === 'badge'">
-                  <div class="pv-solo">
-                    <div class="pv-section-title">软色调（soft）</div>
-                    <div class="pv-row mb-4">
-                      <BaseBadge color="var(--color-event-calendar)">日历</BaseBadge>
-                      <BaseBadge color="var(--color-event-deadline)">截止</BaseBadge>
-                      <BaseBadge color="var(--color-event-duration)">时间块</BaseBadge>
-                      <BaseBadge color="var(--color-event-idea)">灵感</BaseBadge>
-                      <BaseBadge color="var(--color-danger)">逾期</BaseBadge>
-                      <BaseBadge color="var(--color-success)">完成</BaseBadge>
-                      <BaseBadge color="var(--color-primary)">Primary</BaseBadge>
-                      <BaseBadge color="var(--color-accent)">Accent</BaseBadge>
-                    </div>
-                    <div class="pv-section-title">变体</div>
-                    <div class="pv-row mb-4">
-                      <BaseBadge variant="soft" color="var(--color-primary)">Soft</BaseBadge>
-                      <BaseBadge variant="solid" color="var(--color-primary)">Solid</BaseBadge>
-                      <BaseBadge variant="outline" color="var(--color-primary)">Outline</BaseBadge>
-                    </div>
-                  </div>
-                </template>
-
-                <!-- Input -->
-                <template v-else-if="previewComponent === 'input'">
-                  <div class="pv-solo">
-                    <div class="pv-section-title">输入框</div>
-                    <div class="pv-col gap-3">
-                      <BaseInput placeholder="基础输入框..." />
-                      <BaseInput value="已有内容的输入框" />
+                      <div class="pv-section-title">尺寸</div>
+                      <div class="pv-row mb-4">
+                        <BaseButton variant="primary" size="sm">Small</BaseButton>
+                        <BaseButton variant="primary" size="md">Medium</BaseButton>
+                        <BaseButton variant="primary" size="lg">Large</BaseButton>
+                      </div>
+                      <div class="pv-section-title">状态</div>
                       <div class="pv-row">
-                        <BaseInput placeholder="搜索..." />
-                        <BaseButton variant="primary">搜索</BaseButton>
+                        <BaseButton variant="primary">正常</BaseButton>
+                        <BaseButton variant="primary" disabled>Disabled</BaseButton>
                       </div>
                     </div>
-                  </div>
-                </template>
+                  </template>
 
-                <!-- Card -->
-                <template v-else-if="previewComponent === 'card'">
-                  <div class="pv-solo">
-                    <div class="pv-section-title">卡片 · 内边距</div>
-                    <div class="pv-col gap-3">
-                      <BaseCard padding="sm">
-                        <div class="c-title">sm padding</div>
-                        <div class="c-desc">小内边距，适用于紧凑嵌套</div>
-                      </BaseCard>
-                      <BaseCard padding="md">
-                        <div class="c-title">md padding</div>
-                        <div class="c-desc">中内边距，常用面板默认值</div>
-                        <BaseCard padding="sm" class="mt-3 nested">
-                          <div class="c-desc">嵌套卡片 —— 次级表面</div>
-                        </BaseCard>
-                      </BaseCard>
-                      <BaseCard padding="lg">
-                        <div class="c-title">lg padding</div>
-                        <div class="c-desc">大内边距，适用于主卡片和页面区块</div>
-                      </BaseCard>
+                  <!-- Badge -->
+                  <template v-else-if="previewComponent === 'badge'">
+                    <div class="pv-solo">
+                      <div class="pv-section-title">软色调（soft）</div>
+                      <div class="pv-row mb-4">
+                        <BaseBadge color="var(--color-event-calendar)">日历</BaseBadge>
+                        <BaseBadge color="var(--color-event-deadline)">截止</BaseBadge>
+                        <BaseBadge color="var(--color-event-duration)">时间块</BaseBadge>
+                        <BaseBadge color="var(--color-event-idea)">灵感</BaseBadge>
+                        <BaseBadge color="var(--color-danger)">逾期</BaseBadge>
+                        <BaseBadge color="var(--color-success)">完成</BaseBadge>
+                        <BaseBadge color="var(--color-primary)">Primary</BaseBadge>
+                        <BaseBadge color="var(--color-accent)">Accent</BaseBadge>
+                      </div>
+                      <div class="pv-section-title">变体</div>
+                      <div class="pv-row mb-4">
+                        <BaseBadge variant="soft" color="var(--color-primary)">Soft</BaseBadge>
+                        <BaseBadge variant="solid" color="var(--color-primary)">Solid</BaseBadge>
+                        <BaseBadge variant="outline" color="var(--color-primary)">Outline</BaseBadge>
+                      </div>
                     </div>
-                  </div>
-                </template>
-              </main>
+                  </template>
+
+                  <!-- Input -->
+                  <template v-else-if="previewComponent === 'input'">
+                    <div class="pv-solo">
+                      <div class="pv-section-title">输入框</div>
+                      <div class="pv-col gap-3">
+                        <BaseInput placeholder="基础输入框..." />
+                        <BaseInput value="已有内容的输入框" />
+                        <div class="pv-row">
+                          <BaseInput placeholder="搜索..." />
+                          <BaseButton variant="primary">搜索</BaseButton>
+                        </div>
+                      </div>
+                    </div>
+                  </template>
+
+                  <!-- Card -->
+                  <template v-else-if="previewComponent === 'card'">
+                    <div class="pv-solo">
+                      <div class="pv-section-title">卡片 · 内边距</div>
+                      <div class="pv-col gap-3">
+                        <BaseCard padding="sm">
+                          <div class="c-title">sm padding</div>
+                          <div class="c-desc">小内边距，适用于紧凑嵌套</div>
+                        </BaseCard>
+                        <BaseCard padding="md">
+                          <div class="c-title">md padding</div>
+                          <div class="c-desc">中内边距，常用面板默认值</div>
+                          <BaseCard padding="sm" class="mt-3 nested">
+                            <div class="c-desc">嵌套卡片 —— 次级表面</div>
+                          </BaseCard>
+                        </BaseCard>
+                        <BaseCard padding="lg">
+                          <div class="c-title">lg padding</div>
+                          <div class="c-desc">大内边距，适用于主卡片和页面区块</div>
+                        </BaseCard>
+                      </div>
+                    </div>
+                  </template>
+                </main>
+              </template>
             </div>
           </div>
         </div>
@@ -478,6 +470,43 @@ function onStageWheel(ev: WheelEvent) {
                   label="深色遮罩浓度" />
                 <BaseSlider v-model="state.bgOrbOpacity" :min="0" :max="1" :step="0.05"
                   label="光球强度" />
+              </div>
+            </BaseCard>
+
+            <!-- ===== 固定背景：temp vs 正式 的分水岭 ===== -->
+            <BaseCard padding="md">
+              <h3 class="control-group-title">
+                固定当前背景
+                <span class="fix-status">{{ fixedTimeLabel }}</span>
+              </h3>
+              <p class="control-desc">
+                当前在 DSL 中调整的是<b>临时编辑状态</b>，只影响左侧预览区的所见即所得。
+                点击下方按钮后，当前<b>图片 + 位置/缩放/透明/模糊/遮罩/光球</b>全部参数
+                会一并写入 IndexedDB，成为 MYMEMO 主界面正式使用的背景。
+              </p>
+              <p class="control-hint">
+                · 固定后再次修改 DSL，主界面保持固定时的背景，只有预览区跟随变化。<br />
+                · 再次点击「固定」后，主界面才会更新。<br />
+                · 刷新页面后，固定背景仍然保留。
+              </p>
+              <div class="fix-actions">
+                <BaseButton
+                  variant="primary"
+                  size="md"
+                  :disabled="isSavingBackground"
+                  @click="onFixBackground"
+                >
+                  {{ isSavingBackground ? '保存中...' : '固定当前背景到主界面' }}
+                </BaseButton>
+                <BaseButton
+                  variant="ghost"
+                  size="md"
+                  :disabled="isSavingBackground"
+                  @click="onLoadFixedAsTemp"
+                  title="把主界面当前正在使用的固定背景，读取到 DSL 临时编辑区作为起点"
+                >
+                  读取固定值为起点
+                </BaseButton>
               </div>
             </BaseCard>
           </template>
@@ -1249,5 +1278,19 @@ function onStageWheel(ev: WheelEvent) {
 }
 .control-section::-webkit-scrollbar-thumb:hover {
   background: rgba(139, 111, 92, 0.28);
+}
+
+/* ---- 固定背景卡片控件（DSL 自身固定样式，不随调试 Token 变化） ---- */
+.fix-status {
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0;
+  color: #a29482;
+}
+.fix-actions {
+  display: flex;
+  gap: 10px;
+  margin-top: 14px;
+  flex-wrap: wrap;
 }
 </style>

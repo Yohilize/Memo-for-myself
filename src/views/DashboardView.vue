@@ -29,6 +29,17 @@ import {
 } from '@/services/eventCalendarMapper'
 import type { TimeEvent } from '@/types/event'
 
+const props = defineProps<{
+  /**
+   * 嵌入模式：
+   *  - false（默认）：完整页面模式（/）—— 外层 dashboard-root + db-glass 容器。
+   *  - true：嵌入宿主（如 Design Lab 预览区）—— 仅输出 sidebar + content 两个子节点，
+   *          不包外层玻璃面板，交由宿主提供玻璃表面、padding 和宽度控制。
+   */
+  embedded?: boolean
+}>()
+
+const embedded = computed(() => !!props.embedded)
 const eventStore = useEventStore()
 
 // —— Dashboard Head：真实今天的日期 & 问候语（时间段对应） —— //
@@ -82,44 +93,82 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="dashboard-root">
-    <!-- ===== 正式 MYMEMO Dashboard 主玻璃面板（mirror Design Lab preview-app-inner） ===== -->
+  <!-- embedded=true：仅输出 sidebar + content 两个 flex 子节点，交由宿主（DSL preview-app-inner）提供玻璃表面与容器宽度 -->
+  <template v-if="embedded">
+    <aside class="db-sidebar" aria-label="主导航">
+      <img class="db-logo" src="/favicon.png" alt="MYMEMO" draggable="false" />
+      <nav class="db-nav" aria-label="模块导航">
+        <RouterLink to="/" class="db-nav-item active" aria-label="Calendar（当前模块）" title="Calendar">📅</RouterLink>
+        <div class="db-nav-item" aria-disabled="true" title="Todo（开发中）">⏰</div>
+        <div class="db-nav-item" aria-disabled="true" title="Inspiration（开发中）">💡</div>
+      </nav>
+      <RouterLink to="/design-lab" class="db-dsl-entry" title="Design Lab（视觉调试）">
+        <svg class="db-dsl-ic" aria-hidden="true" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="13.5" cy="6.5" r=".5"/>
+          <circle cx="17.5" cy="10.5" r=".5"/>
+          <circle cx="8.5" cy="7.5" r=".5"/>
+          <circle cx="6.5" cy="12.5" r=".5"/>
+          <path d="M12 2a10 10 0 0 0-7.07 17.07A10 10 0 1 0 12 2z"/>
+          <path d="M12 22C9 18 6 14 6 12c0-3 2.5-5 6-5s6 2 6 5c0 2-3 6-6 10z"/>
+        </svg>
+      </RouterLink>
+    </aside>
+    <main class="db-content">
+      <div class="db-head">
+        <div class="db-date">{{ dateText }}</div>
+        <div class="db-greet">{{ greetingText }}</div>
+      </div>
+      <div class="db-chips">
+        <BaseCard v-for="c in statChips" :key="c.tag" padding="md" class="db-chip">
+          <div class="chip-title">{{ c.tag }}</div>
+          <div class="chip-val" :style="{ color: c.accent }">
+            {{ c.tag === '今日完成' ? todayCountChip : c.value }}
+          </div>
+        </BaseCard>
+      </div>
+      <div class="db-section-title">今日事件</div>
+      <div class="db-events" v-if="eventsForToday.length">
+        <div
+          v-for="e in eventsForToday" :key="e.id" class="db-event"
+          :style="{ '--c': typeColorByType[e.type] ?? 'var(--color-text-tertiary)' }"
+        >
+          <span class="db-event-dot"></span>
+          <div class="db-event-body">
+            <div class="db-event-title">{{ e.title }}</div>
+            <div class="db-event-meta">
+              {{ typeLabelByType[e.type] ?? e.type }} · {{ dayEventTimeLabel(e, todayKey) }}
+            </div>
+          </div>
+          <BaseBadge :color="typeColorByType[e.type] ?? 'var(--color-text-tertiary)'">
+            {{ typeLabelByType[e.type] ?? e.type }}
+          </BaseBadge>
+        </div>
+      </div>
+      <div v-else class="db-events-empty">
+        <span class="db-empty-ic">·</span>
+        <span>今天还没有事件，保持轻松的一天吧。</span>
+      </div>
+      <div class="db-section-title db-cal-title">
+        <span>日历</span>
+        <RouterLink to="/calendar" class="db-cal-link" title="打开 Calendar 独立调试页">独立页</RouterLink>
+      </div>
+      <div class="db-cal-wrap">
+        <CalendarView embedded />
+      </div>
+    </main>
+  </template>
+
+  <!-- embedded=false（默认）：完整主界面 → dashboard-root 外层留白 + db-glass 玻璃面板 -->
+  <div v-else class="dashboard-root">
     <section class="db-glass" aria-label="MYMEMO Dashboard">
-      <!-- ============== 左侧 Sidebar（56px）：MYMEMO 导航标识 + 模块 nav ============== -->
       <aside class="db-sidebar" aria-label="主导航">
         <img class="db-logo" src="/favicon.png" alt="MYMEMO" draggable="false" />
-
         <nav class="db-nav" aria-label="模块导航">
-          <RouterLink
-            to="/"
-            class="db-nav-item active"
-            aria-label="Calendar（当前模块）"
-            title="Calendar"
-          >
-            📅
-          </RouterLink>
-          <div
-            class="db-nav-item"
-            aria-disabled="true"
-            title="Todo（开发中）"
-          >
-            ⏰
-          </div>
-          <div
-            class="db-nav-item"
-            aria-disabled="true"
-            title="Inspiration（开发中）"
-          >
-            💡
-          </div>
+          <RouterLink to="/" class="db-nav-item active" aria-label="Calendar（当前模块）" title="Calendar">📅</RouterLink>
+          <div class="db-nav-item" aria-disabled="true" title="Todo（开发中）">⏰</div>
+          <div class="db-nav-item" aria-disabled="true" title="Inspiration（开发中）">💡</div>
         </nav>
-
-        <!-- 底部：Design Lab 小入口胶囊（保留原来 Dashboard 的 dev-entry 位置，整合到 Sidebar 底） -->
-        <RouterLink
-          to="/design-lab"
-          class="db-dsl-entry"
-          title="Design Lab（视觉调试）"
-        >
+        <RouterLink to="/design-lab" class="db-dsl-entry" title="Design Lab（视觉调试）">
           <svg class="db-dsl-ic" aria-hidden="true" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
             <circle cx="13.5" cy="6.5" r=".5"/>
             <circle cx="17.5" cy="10.5" r=".5"/>
@@ -130,16 +179,11 @@ onMounted(() => {
           </svg>
         </RouterLink>
       </aside>
-
-      <!-- ============== 右侧主内容区 ============== -->
       <main class="db-content">
-        <!-- ---------- Head：日期 + 问候语（参考 Design Lab pv-date / pv-greet） ---------- -->
         <div class="db-head">
           <div class="db-date">{{ dateText }}</div>
           <div class="db-greet">{{ greetingText }}</div>
         </div>
-
-        <!-- ---------- 统计 chip 行（参考 Design Lab pv-row + pv-chip；真实今日事件数替换"待办"的值以接真实数据；其余保留 Preview 静态） ---------- -->
         <div class="db-chips">
           <BaseCard v-for="c in statChips" :key="c.tag" padding="md" class="db-chip">
             <div class="chip-title">{{ c.tag }}</div>
@@ -148,14 +192,10 @@ onMounted(() => {
             </div>
           </BaseCard>
         </div>
-
-        <!-- ---------- 今日事件（参考 Design Lab pv-events；接真实 Event Store） ---------- -->
         <div class="db-section-title">今日事件</div>
         <div class="db-events" v-if="eventsForToday.length">
           <div
-            v-for="e in eventsForToday"
-            :key="e.id"
-            class="db-event"
+            v-for="e in eventsForToday" :key="e.id" class="db-event"
             :style="{ '--c': typeColorByType[e.type] ?? 'var(--color-text-tertiary)' }"
           >
             <span class="db-event-dot"></span>
@@ -174,8 +214,6 @@ onMounted(() => {
           <span class="db-empty-ic">·</span>
           <span>今天还没有事件，保持轻松的一天吧。</span>
         </div>
-
-        <!-- ---------- Calendar 正式模块（核心内容；复用 @calendar/CalendarView，embedded 模式去掉外层 BaseCard） ---------- -->
         <div class="db-section-title db-cal-title">
           <span>日历</span>
           <RouterLink to="/calendar" class="db-cal-link" title="打开 Calendar 独立调试页">独立页</RouterLink>

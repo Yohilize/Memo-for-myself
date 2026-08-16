@@ -1,4 +1,6 @@
 import { reactive, ref, watch } from 'vue'
+import { useFixedBackgroundStore } from '@/stores'
+import type { BackgroundSettings } from '@/db/database'
 
 /**
  * Design Lab Token 控制器
@@ -196,4 +198,74 @@ export function resetWallpaperTransform() {
   state.bgOffsetX = 0
   state.bgOffsetY = 0
   state.bgScale = 1.0
+}
+
+// ==========================================================================
+// 「固定当前背景」机制：
+//   DSL 编辑时所有滑块 / 壁纸上传修改的都是 state + currentWallpaper（temp），
+//   全局 CSS var 只影响 DSL 预览区的 .preview-stage；主界面 BackgroundLayer
+//   已通过 inline style 自行从 useFixedBackgroundStore 读取，不跟随 temp 变化。
+//
+//   只有用户点击「固定当前背景」时，才把「当前 temp 值的快照」写入
+//   fixedBackground Pinia store + Dexie IndexedDB，主界面背景才真正更新
+//   并在刷新后仍然存在。
+// ==========================================================================
+
+/** 从 DSL 临时 state 中提取出「背景相关字段」的快照（不含 id / updatedAt） */
+export function snapshotTempBackground(): Omit<BackgroundSettings, 'id' | 'updatedAt'> {
+  return {
+    wallpaperDataUrl: currentWallpaper.value ?? '',
+    bgOffsetX: state.bgOffsetX,
+    bgOffsetY: state.bgOffsetY,
+    bgScale: state.bgScale,
+    bgImageOpacity: state.bgImageOpacity,
+    bgImageBlur: state.bgImageBlur,
+    bgMaskOpacity: state.bgMaskOpacity,
+    bgOrbOpacity: state.bgOrbOpacity,
+  }
+}
+
+/**
+ * 把「当前 DSL 临时编辑的背景（图片 + 8 个参数）」固定为正式背景：
+ *  1. 写入 fixedBackground Pinia store → 主界面 BackgroundLayer 立刻响应式更新。
+ *  2. 写入 Dexie IndexedDB（backgroundSettings 表，单条 'default'）→ 刷新后仍然存在。
+ *
+ * @returns 写入成功后 fixedStore 返回的完整 BackgroundSettings 记录
+ */
+export async function saveCurrentBackgroundAsFixed(): Promise<BackgroundSettings> {
+  const fbStore = useFixedBackgroundStore()
+  const snapshot = snapshotTempBackground()
+  const record = await fbStore.save(snapshot)
+  return record
+}
+
+/**
+ * 同步 DSL 的临时编辑状态（temp）为「当前固定背景」的值。
+ * 场景：用户刚打开 DSL，想基于"现有正式背景"继续微调，而不是从零开始。
+ * —— 不自动调用，按需在 DSL 组件中手动触发（如进入背景 tab 时提示）。
+ */
+export async function loadFixedAsTemp() {
+  const fbStore = useFixedBackgroundStore()
+  // 确保 store 已初始化
+  if (!fbStore.initialized) {
+    await fbStore.load()
+  }
+  // wallpaper
+  currentWallpaper.value = fbStore.wallpaperDataUrl || ''
+  if (currentWallpaper.value) {
+    document.documentElement.style.setProperty(
+      '--bg-image-url',
+      `url("${currentWallpaper.value}")`,
+    )
+  } else {
+    document.documentElement.style.setProperty('--bg-image-url', 'none')
+  }
+  // 8 个背景参数（仅写背景相关；不动颜色 / 玻璃 / appWidth）
+  state.bgOffsetX = fbStore.bgOffsetX
+  state.bgOffsetY = fbStore.bgOffsetY
+  state.bgScale = fbStore.bgScale
+  state.bgImageOpacity = fbStore.bgImageOpacity
+  state.bgImageBlur = fbStore.bgImageBlur
+  state.bgMaskOpacity = fbStore.bgMaskOpacity
+  state.bgOrbOpacity = fbStore.bgOrbOpacity
 }

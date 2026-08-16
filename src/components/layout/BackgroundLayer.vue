@@ -1,26 +1,46 @@
 <script setup lang="ts">
 /**
- * BackgroundLayer
- * 独立的背景层组件。背景图采用真实 <img> + transform(offset/scale) 模型，
- * 图片本身不会被提前裁切，translate/scale 作用在完整像素上，
- * 与 Design Lab 中用户的拖拽/缩放操作一一对应。
+ * BackgroundLayer —— 独立的背景层组件。
+ *
+ * 🔴 关键隔离机制（DSL 临时编辑状态 vs 正式固定背景）：
+ *  - 壁纸 src + 8 个背景参数（offset/scale/opacity/blur/mask/orbOpacity）
+ *    只从 useFixedBackgroundStore 读取，**绝不**从 DSL 的 useTokenControls 中读取。
+ *  - 颜色 / 玻璃 / 光球色 / 背景渐变 仍走全局 CSS var（useTokenControls 立即生效），
+ *    不属于「固定背景」机制的管控范围。
+ *
+ * 隔离的实现：在根元素 .bg-layer 上通过 :style 为 8 个背景相关 CSS var
+ * 重新赋值为 fixedStore 的当前值 → 因为 CSS 自定义属性继承，所有子元素
+ * 读取到的 var(--bg-image-opacity) 等就是固定值，
+ * 而不是 useTokenControls applyTokens() 写到 documentElement 的临时值。
  */
 import { computed } from 'vue'
-import { getWallpaper } from '@design-lab/useTokenControls'
-const wallpaperSrc = computed(() => getWallpaper())
+import { useFixedBackgroundStore } from '@/stores'
+
+const fb = useFixedBackgroundStore()
+
+const wallpaperSrc = computed(() => fb.wallpaperDataUrl || '')
+
+/** 把固定背景参数作为局部 CSS var 写到根元素，覆盖全局的 DSL 临时值 */
+const rootStyle = computed<Record<string, string>>(() => ({
+  '--bg-offset-x': `${fb.bgOffsetX}px`,
+  '--bg-offset-y': `${fb.bgOffsetY}px`,
+  '--bg-scale': String(fb.bgScale),
+  '--bg-image-opacity': String(fb.bgImageOpacity),
+  '--bg-image-blur': `${fb.bgImageBlur}px`,
+  '--bg-mask-opacity': String(fb.bgMaskOpacity),
+  '--bg-orb-opacity': String(fb.bgOrbOpacity),
+}))
 </script>
 
 <template>
-  <div class="bg-layer" aria-hidden="true">
+  <div class="bg-layer" aria-hidden="true" :style="rootStyle">
     <div class="bg-gradient"></div>
     <div class="bg-orb bg-orb-1"></div>
     <div class="bg-orb bg-orb-2"></div>
     <div class="bg-orb bg-orb-3"></div>
 
-    <!-- 真实 <img>：min-cover（图片自身不被提前裁切），
-         居中定位后再施加 --bg-offset-x/y 与 --bg-scale。
-         translate(px) 时，原先在容器外的图像像素会真正"移动"到视口内，
-         因此用户在 Design Lab 拖出来的构图 = 真实 MYMEMO 首页看到的构图。 -->
+    <!-- 真实 <img>：min-cover + transform(offset/scale)
+         —— 与 DSL 预览模型一致，但参数来自 fixedStore（而不是 DSL 临时 state） -->
     <div class="bg-image-wrap">
       <img v-if="wallpaperSrc" class="bg-image-img"
         :src="wallpaperSrc" alt="" draggable="false" />
@@ -79,12 +99,9 @@ const wallpaperSrc = computed(() => getWallpaper())
   animation: float-3 17s ease-in-out infinite;
 }
 
-/* 背景图：真实 <img> + min-cover + transform(offset/scale)
-   —— 核心：img 元素按自身比例保留全部像素，
-      仅通过 min-width/min-height:100% 保证最小覆盖；
-      translate 作用在完整的 img 元素上，所以"拖动"时
-      原先在容器外的像素会真正进入视口。
-      overflow:hidden 只裁剪容器可见区域，不影响图片本身。 */
+/* 背景图：min-cover + transform(offset/scale)
+   注意：此处 var 的值来自 .bg-layer 的 inline style（fixedStore 固定值），
+         不是 documentElement 上 DSL 临时写入的值。 */
 .bg-image-wrap {
   position: absolute;
   inset: 0;
