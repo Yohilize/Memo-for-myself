@@ -14,6 +14,7 @@ import BaseCard from '@/components/base/BaseCard.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
 import BaseInput from '@/components/base/BaseInput.vue'
 import BaseBadge from '@/components/base/BaseBadge.vue'
+import { useDashboardPinnedEvent } from '@/composables/useDashboardPinnedEvent'
 import type { TimeEvent, EventType, Priority, EventStatus } from '@/types/event'
 import type { CreateEventInput, UpdateEventInput } from '@/services/eventTypes'
 
@@ -40,7 +41,9 @@ const emit = defineEmits<{
 }>()
 
 const isEdit = computed(() => !!props.editingEvent)
-const event = props.editingEvent!
+const event = computed(() => props.editingEvent)
+const currentEventId = computed(() => event.value?.id ?? '')
+const { isEventPinned, toggleEventPinned } = useDashboardPinnedEvent()
 
 // —— 受控表单字段（全部可选，提交时按 CreateEventInput 收敛校验）—— //
 type TypeSelectable = EventType
@@ -90,7 +93,8 @@ watch(
   (v) => {
     if (!v) return
     if (isEdit.value) {
-      const e = event
+      const e = event.value
+      if (!e) return
       form.type = e.type
       form.title = e.title
       form.notes = e.notes
@@ -155,7 +159,8 @@ function handleSubmit() {
 
   if (isEdit.value) {
     // —— 编辑：生成 patch（type 不包含，不变更）—— //
-    const e = event
+    const e = event.value
+    if (!e) return
     const patch: UpdateEventInput = {
       title: form.title.trim(),
       notes: form.notes,
@@ -247,9 +252,8 @@ function close() {
 
 function handleDelete() {
   if (!isEdit.value) return
-  const e = event
-  const ok = window.confirm(`确定删除「${e.title}」吗？`)
-  if (!ok) return
+  const e = event.value
+  if (!e) return
   emit('delete', e.id)
   emit('update:visible', false)
 }
@@ -449,15 +453,25 @@ const typeColors: Record<EventType, string> = {
 
         <!-- === 底部：左（编辑时才有删除）/ 右：取消 / 保存 === -->
         <footer class="ef-foot">
-          <BaseButton
-            v-if="isEdit"
-            variant="ghost"
-            class="ef-delete-btn"
-            @click="handleDelete"
-          >
-            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right:4px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
-            删除
-          </BaseButton>
+          <div class="ef-foot-left">
+            <label v-if="isEdit" class="ef-pin-toggle">
+              <input
+                type="checkbox"
+                :checked="isEventPinned(currentEventId)"
+                @change="toggleEventPinned(currentEventId)"
+              />
+              <span>固定到仪表盘</span>
+            </label>
+            <BaseButton
+              v-if="isEdit"
+              variant="ghost"
+              class="ef-delete-btn"
+              @click="handleDelete"
+            >
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="margin-right:4px"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+              删除
+            </BaseButton>
+          </div>
           <div class="ef-foot-right">
             <BaseButton variant="ghost" @click="close">取消</BaseButton>
             <BaseButton variant="primary" :disabled="!!errorMsg" @click="handleSubmit">
@@ -698,6 +712,24 @@ const typeColors: Record<EventType, string> = {
   gap: 8px;
   padding-top: 4px;
   border-top: 1px dashed var(--divider-color);
+}
+.ef-foot-left {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+.ef-pin-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-text-secondary);
+  font-size: 11px;
+  cursor: pointer;
+  user-select: none;
+}
+.ef-pin-toggle input {
+  accent-color: var(--color-primary);
 }
 .ef-foot-right {
   display: flex;

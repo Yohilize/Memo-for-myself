@@ -5,6 +5,7 @@ import dayjs from 'dayjs'
 import { computed, onMounted, ref } from 'vue'
 import BaseCard from '@/components/base/BaseCard.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
+import BaseConfirmDialog from '@/components/base/BaseConfirmDialog.vue'
 import EventForm from '@calendar/EventForm.vue'
 import { useEventStore } from '@/stores/eventStore'
 import {
@@ -29,6 +30,10 @@ import type { CreateEventInput, UpdateEventInput } from '@/services/eventTypes'
 const props = defineProps<{
   embedded?: boolean
 }>()
+const emit = defineEmits<{
+  (event: 'edit-event', value: TimeEvent): void
+  (event: 'delete-event', value: TimeEvent): void
+}>()
 
 const embedded = computed(() => !!props.embedded)
 const eventStore = useEventStore()
@@ -49,6 +54,7 @@ const selectedDateKey = ref<string>(dayjs().format('YYYY-MM-DD'))
 const titleText = computed(() =>
   dayjs(viewDate.value).format('YYYY 年 M 月'),
 )
+const weekdayLabels = ['一', '二', '三', '四', '五', '六', '日']
 
 /** 设置视图月（按月份对齐到 1 号） */
 function setViewMonth(raw: Date | string | dayjs.Dayjs) {
@@ -186,6 +192,7 @@ function orderedTypes(dKey: string): string[] {
  * ============================================================================== */
 const formVisible = ref(false)
 const editingEvent = ref<TimeEvent | null>(null)
+const deleteTarget = ref<TimeEvent | null>(null)
 
 /** 点右下角「+」：新增，默认日期 = Calendar 选中日期 */
 function openCreateForm() {
@@ -194,6 +201,10 @@ function openCreateForm() {
 }
 /** 点某事件「编辑」：把该事件作为 editingEvent 传入 */
 function openEditForm(e: TimeEvent) {
+  if (embedded.value) {
+    emit('edit-event', e)
+    return
+  }
   editingEvent.value = e
   formVisible.value = true
 }
@@ -216,12 +227,24 @@ async function handleSubmitUpdate(id: string, patch: UpdateEventInput) {
     // 同上
   }
 }
-/** 删除：二次确认避免误删（使用原生 confirm，不引入新弹窗组件） */
-async function handleDelete(e: TimeEvent) {
-  const ok = window.confirm(`确定删除「${e.title}」吗？`)
-  if (!ok) return
+/** 删除：先打开 MYMEMO 玻璃确认层，确认后才触发 Store.remove。 */
+function requestDelete(e: TimeEvent) {
+  if (embedded.value) {
+    emit('delete-event', e)
+    return
+  }
+  deleteTarget.value = e
+}
+function cancelDelete() {
+  deleteTarget.value = null
+}
+async function confirmDelete() {
+  const e = deleteTarget.value
+  if (!e) return
+  deleteTarget.value = null
   try {
     await eventStore.remove(e.id)
+    if (editingEvent.value?.id === e.id) editingEvent.value = null
   } catch (_err) {
     // 同上
   }
@@ -266,6 +289,9 @@ onMounted(() => {
       <!-- 外层 .cal-host 是 relative 容器，用于承载「+」悬浮按钮；不改变原布局尺寸 -->
       <div class="cal-host">
         <div class="mymemo-cal">
+          <div class="mymemo-weekdays" aria-hidden="true">
+            <span v-for="label in weekdayLabels" :key="label">{{ label }}</span>
+          </div>
           <VueCal
             v-bind="calOptions"
             :events="[]"
@@ -348,7 +374,7 @@ onMounted(() => {
                 type="button"
                 aria-label="删除"
                 title="删除"
-                @click.stop="handleDelete(e)"
+                @click.stop="requestDelete(e)"
               >
                 <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
               </button>
@@ -390,6 +416,9 @@ onMounted(() => {
     <!-- Vue Cal 42 格：与独立页完全相同 -->
     <div class="cal-host">
       <div class="mymemo-cal">
+        <div class="mymemo-weekdays" aria-hidden="true">
+          <span v-for="label in weekdayLabels" :key="label">{{ label }}</span>
+        </div>
         <VueCal
           v-bind="calOptions"
           :events="[]"
@@ -472,7 +501,7 @@ onMounted(() => {
               type="button"
               aria-label="删除"
               title="删除"
-              @click.stop="handleDelete(e)"
+              @click.stop="requestDelete(e)"
             >
               <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
             </button>
@@ -493,7 +522,13 @@ onMounted(() => {
     :editing-event="editingEvent"
     @submit-create="handleSubmitCreate"
     @submit-update="handleSubmitUpdate"
-    @delete="(id) => { const e = eventStore.events.find(x => x.id === id); if (e) handleDelete(e) }"
+    @delete="(id) => { const e = eventStore.events.find(x => x.id === id); if (e) requestDelete(e) }"
+  />
+  <BaseConfirmDialog
+    :visible="!!deleteTarget"
+    :event-title="deleteTarget?.title ?? ''"
+    @cancel="cancelDelete"
+    @confirm="confirmDelete"
   />
 </template>
 
@@ -598,6 +633,23 @@ onMounted(() => {
   --cal-cell-h: 46px;
 }
 
+/* 自定义轻量星期标题：保持周一至周日顺序，不引入传统表格表头的重量感。 */
+.mymemo-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, minmax(0, 1fr));
+  margin-bottom: 8px;
+  color: var(--color-text-tertiary);
+  font-size: 10px;
+  font-weight: var(--font-semibold);
+  letter-spacing: 0.08em;
+  line-height: 1.2;
+  text-align: center;
+  user-select: none;
+}
+.mymemo-weekdays span {
+  min-width: 0;
+}
+
 /* —— Vue Cal 默认容器：透明、无边框、无阴影 —— */
 .mymemo-cal :deep(.vuecal),
 .mymemo-cal :deep(.vuecal__flex),
@@ -624,10 +676,7 @@ onMounted(() => {
 
 /* —— 星期标题：只保留轻微的字面层级，不画底线 —— */
 .mymemo-cal :deep(.vuecal__weekdays-headings) {
-  margin-bottom: 8px !important;
-  padding: 0 !important;
-  border: none !important;
-  border-bottom: none !important;
+  display: none !important;
 }
 .mymemo-cal :deep(.vuecal__heading),
 .mymemo-cal :deep(.vuecal__weekdays-cell) {
@@ -860,9 +909,8 @@ onMounted(() => {
 @media (max-width: 520px) {
   .calendar-wrap { width: 100%; }
   .mymemo-cal { --cal-cell-h: 40px; }
+  .mymemo-weekdays { margin-bottom: 6px; font-size: 9px; }
   .vc-day-num { width: 28px; height: 28px; font-size: 11px; border-radius: 9px; }
-  .mymemo-cal :deep(.vuecal__heading),
-  .mymemo-cal :deep(.vuecal__weekdays-cell) { font-size: 9px !important; }
   .vc-dot { width: 3px; height: 3px; }
   .vc-indicators { gap: 1.5px; height: 5px; }
 }
