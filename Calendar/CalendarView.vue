@@ -5,6 +5,7 @@ import dayjs from 'dayjs'
 import { computed, onMounted, ref } from 'vue'
 import BaseCard from '@/components/base/BaseCard.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
+import EventForm from '@calendar/EventForm.vue'
 import { useEventStore } from '@/stores/eventStore'
 import {
   mapEventsToDateIndicators,
@@ -13,6 +14,7 @@ import {
   dayEventSortKey,
 } from '@/services/eventCalendarMapper'
 import type { TimeEvent } from '@/types/event'
+import type { CreateEventInput, UpdateEventInput } from '@/services/eventTypes'
 
 /**
  * CalendarView 可在两种模式下使用：
@@ -179,6 +181,52 @@ function orderedTypes(dKey: string): string[] {
   return order.filter((t) => ind.byType[t as never] > 0)
 }
 
+/* ==============================================================================
+ *  CRUD UI：EventForm（新增 / 编辑） + 编辑 / 删除入口
+ * ============================================================================== */
+const formVisible = ref(false)
+const editingEvent = ref<TimeEvent | null>(null)
+
+/** 点右下角「+」：新增，默认日期 = Calendar 选中日期 */
+function openCreateForm() {
+  editingEvent.value = null
+  formVisible.value = true
+}
+/** 点某事件「编辑」：把该事件作为 editingEvent 传入 */
+function openEditForm(e: TimeEvent) {
+  editingEvent.value = e
+  formVisible.value = true
+}
+/** 提交新增：走 Store，Pinia 响应式会自动刷新 indicator + 选中日期列表 + Dashboard 今日事件 */
+async function handleSubmitCreate(input: CreateEventInput) {
+  try {
+    await eventStore.create(input)
+    formVisible.value = false
+  } catch (err) {
+    // 仅吞掉异常以免 UI 卡住；错误文案已经存在 eventStore.error 中
+  }
+}
+/** 提交编辑：走 Store.update（id 不丢） */
+async function handleSubmitUpdate(id: string, patch: UpdateEventInput) {
+  try {
+    await eventStore.update(id, patch)
+    formVisible.value = false
+    editingEvent.value = null
+  } catch (_err) {
+    // 同上
+  }
+}
+/** 删除：二次确认避免误删（使用原生 confirm，不引入新弹窗组件） */
+async function handleDelete(e: TimeEvent) {
+  const ok = window.confirm(`确定删除「${e.title}」吗？`)
+  if (!ok) return
+  try {
+    await eventStore.remove(e.id)
+  } catch (_err) {
+    // 同上
+  }
+}
+
 onMounted(() => {
   eventStore.loadAll()
 })
@@ -188,7 +236,7 @@ onMounted(() => {
   <!-- ============ 独立页模式 /calendar：页面级 padding + 一张 BaseCard ============ -->
   <div v-if="!embedded" class="calendar-page">
     <BaseCard padding="md" class="calendar-wrap">
-      <!-- 自定义头部：左"日历"标识 + 右月份控件；全部自管，不使用 VueCal 默认 toolbar -->
+      <!-- 自定义头部：左"日历"标识 + 右月份控件 + 新增按钮；全部自管，不使用 VueCal 默认 toolbar -->
       <div class="cal-header">
         <div class="cal-nav-left">
           <svg class="cal-ic" aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18"/><path d="M8 3v4M16 3v4"/></svg>
@@ -199,10 +247,148 @@ onMounted(() => {
           <span class="cal-title">{{ titleText }}</span>
           <BaseButton variant="ghost" size="sm" @click="nextMonth">›</BaseButton>
           <BaseButton variant="ghost" size="sm" class="cal-today-btn" @click="goToday">今天</BaseButton>
+          <button
+            class="cal-add-btn"
+            type="button"
+            aria-label="新增事件"
+            title="新增事件"
+            @click="openCreateForm"
+          >
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+              <line x1="12" y1="5" x2="12" y2="19"/>
+              <line x1="5" y1="12" x2="19" y2="12"/>
+            </svg>
+          </button>
         </div>
       </div>
 
       <!-- Vue Cal 42 格：自定义 cell-content slot 完全重写 cell 视觉 -->
+      <!-- 外层 .cal-host 是 relative 容器，用于承载「+」悬浮按钮；不改变原布局尺寸 -->
+      <div class="cal-host">
+        <div class="mymemo-cal">
+          <VueCal
+            v-bind="calOptions"
+            :events="[]"
+            :selected-date="selectedDateForVueCal"
+            locale="zh-cn"
+            @cell-click="onCellClick"
+          >
+            <template #cell-content="{ cell }">
+              <div class="vc-cell-inner">
+                <span
+                  class="vc-day-num"
+                  :class="{
+                    'is-today': isShowingCurrentMonth && (cell.formattedDate === todayKey || cell.today),
+                    'is-selected': cell.formattedDate === selectedDateKey,
+                    'is-weekday-outside': cell.outOfScope,
+                  }"
+                >
+                  {{ cell.content }}
+                </span>
+                <div
+                  class="vc-indicators"
+                  v-if="indicators[cell.formattedDate]?.hasEvent"
+                >
+                  <span
+                    v-for="t in orderedTypes(cell.formattedDate).slice(0, 3)"
+                    :key="t"
+                    class="vc-dot"
+                    :style="{ backgroundColor: dotVarByType[t] }"
+                    :title="typeLabelByType[t] ?? t"
+                  ></span>
+                </div>
+              </div>
+            </template>
+          </VueCal>
+        </div>
+      </div>
+
+      <!-- 选中日期 → 当天事件列表 -->
+      <div class="day-events" v-if="selectedDateKey">
+        <div class="day-events-head">
+          <span class="day-events-date">
+            {{ dayjs(selectedDateKey).format('M 月 D 日') }}
+            <small class="day-events-weekday">
+              {{ dayjs(selectedDateKey).format('dddd') }}
+            </small>
+          </span>
+          <span class="day-events-count" v-if="eventsForSelectedDay.length">
+            {{ eventsForSelectedDay.length }} 项
+          </span>
+        </div>
+        <div class="day-events-list" v-if="eventsForSelectedDay.length">
+          <div
+            v-for="e in eventsForSelectedDay"
+            :key="e.id"
+            class="day-event-row"
+            :title="`${typeLabelByType[e.type]} · 点击编辑`"
+            @click="openEditForm(e)"
+          >
+            <span
+              class="day-event-type-dot"
+              :style="{ backgroundColor: dotVarByType[e.type] }"
+              :aria-label="typeLabelByType[e.type]"
+            ></span>
+            <span class="day-event-time">
+              {{ dayEventTimeLabel(e, selectedDateKey) }}
+            </span>
+            <span class="day-event-title">{{ e.title }}</span>
+            <div class="day-event-actions">
+              <button
+                class="de-btn"
+                type="button"
+                aria-label="编辑"
+                title="编辑"
+                @click.stop="openEditForm(e)"
+              >
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+              </button>
+              <button
+                class="de-btn de-btn--danger"
+                type="button"
+                aria-label="删除"
+                title="删除"
+                @click.stop="handleDelete(e)"
+              >
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+              </button>
+            </div>
+          </div>
+        </div>
+        <div class="day-events-empty" v-else>
+          <span class="empty-icon" aria-hidden="true">·</span>
+          <span class="empty-text">今天还没有安排</span>
+        </div>
+      </div>
+    </BaseCard>
+  </div>
+
+  <!-- ============ 嵌入模式 Dashboard：去掉外层卡片 + 冗余"日历"标题 ============ -->
+  <div v-else class="cal-embedded">
+    <!-- 只有月份导航控件（宿主自己有模块标题/侧边栏标识） -->
+    <div class="cal-header cal-header--embedded">
+      <div class="cal-nav-right">
+        <BaseButton variant="ghost" size="sm" @click="prevMonth">‹</BaseButton>
+        <span class="cal-title">{{ titleText }}</span>
+        <BaseButton variant="ghost" size="sm" @click="nextMonth">›</BaseButton>
+        <BaseButton variant="ghost" size="sm" class="cal-today-btn" @click="goToday">今天</BaseButton>
+        <button
+          class="cal-add-btn"
+          type="button"
+          aria-label="新增事件"
+          title="新增事件"
+          @click="openCreateForm"
+        >
+          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+            <line x1="12" y1="5" x2="12" y2="19"/>
+            <line x1="5" y1="12" x2="19" y2="12"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Vue Cal 42 格：与独立页完全相同 -->
+    <div class="cal-host">
       <div class="mymemo-cal">
         <VueCal
           v-bind="calOptions"
@@ -239,94 +425,6 @@ onMounted(() => {
           </template>
         </VueCal>
       </div>
-
-      <!-- 选中日期 → 当天事件列表 -->
-      <div class="day-events" v-if="selectedDateKey">
-        <div class="day-events-head">
-          <span class="day-events-date">
-            {{ dayjs(selectedDateKey).format('M 月 D 日') }}
-            <small class="day-events-weekday">
-              {{ dayjs(selectedDateKey).format('dddd') }}
-            </small>
-          </span>
-          <span class="day-events-count" v-if="eventsForSelectedDay.length">
-            {{ eventsForSelectedDay.length }} 项
-          </span>
-        </div>
-        <div class="day-events-list" v-if="eventsForSelectedDay.length">
-          <div
-            v-for="e in eventsForSelectedDay"
-            :key="e.id"
-            class="day-event-row"
-            :title="typeLabelByType[e.type]"
-          >
-            <span
-              class="day-event-type-dot"
-              :style="{ backgroundColor: dotVarByType[e.type] }"
-              :aria-label="typeLabelByType[e.type]"
-            ></span>
-            <span class="day-event-time">
-              {{ dayEventTimeLabel(e, selectedDateKey) }}
-            </span>
-            <span class="day-event-title">{{ e.title }}</span>
-          </div>
-        </div>
-        <div class="day-events-empty" v-else>
-          <span class="empty-icon" aria-hidden="true">·</span>
-          <span class="empty-text">今天还没有安排</span>
-        </div>
-      </div>
-    </BaseCard>
-  </div>
-
-  <!-- ============ 嵌入模式 Dashboard：去掉外层卡片 + 冗余"日历"标题 ============ -->
-  <div v-else class="cal-embedded">
-    <!-- 只有月份导航控件（宿主自己有模块标题/侧边栏标识） -->
-    <div class="cal-header cal-header--embedded">
-      <div class="cal-nav-right">
-        <BaseButton variant="ghost" size="sm" @click="prevMonth">‹</BaseButton>
-        <span class="cal-title">{{ titleText }}</span>
-        <BaseButton variant="ghost" size="sm" @click="nextMonth">›</BaseButton>
-        <BaseButton variant="ghost" size="sm" class="cal-today-btn" @click="goToday">今天</BaseButton>
-      </div>
-    </div>
-
-    <!-- Vue Cal 42 格：与独立页完全相同 -->
-    <div class="mymemo-cal">
-      <VueCal
-        v-bind="calOptions"
-        :events="[]"
-        :selected-date="selectedDateForVueCal"
-        locale="zh-cn"
-        @cell-click="onCellClick"
-      >
-        <template #cell-content="{ cell }">
-          <div class="vc-cell-inner">
-            <span
-              class="vc-day-num"
-              :class="{
-                'is-today': isShowingCurrentMonth && (cell.formattedDate === todayKey || cell.today),
-                'is-selected': cell.formattedDate === selectedDateKey,
-                'is-weekday-outside': cell.outOfScope,
-              }"
-            >
-              {{ cell.content }}
-            </span>
-            <div
-              class="vc-indicators"
-              v-if="indicators[cell.formattedDate]?.hasEvent"
-            >
-              <span
-                v-for="t in orderedTypes(cell.formattedDate).slice(0, 3)"
-                :key="t"
-                class="vc-dot"
-                :style="{ backgroundColor: dotVarByType[t] }"
-                :title="typeLabelByType[t] ?? t"
-              ></span>
-            </div>
-          </div>
-        </template>
-      </VueCal>
     </div>
 
     <!-- 选中日期 → 当天事件列表：与独立页完全相同 -->
@@ -347,7 +445,8 @@ onMounted(() => {
           v-for="e in eventsForSelectedDay"
           :key="e.id"
           class="day-event-row"
-          :title="typeLabelByType[e.type]"
+          :title="`${typeLabelByType[e.type]} · 点击编辑`"
+          @click="openEditForm(e)"
         >
           <span
             class="day-event-type-dot"
@@ -358,6 +457,26 @@ onMounted(() => {
             {{ dayEventTimeLabel(e, selectedDateKey) }}
           </span>
           <span class="day-event-title">{{ e.title }}</span>
+          <div class="day-event-actions">
+            <button
+              class="de-btn"
+              type="button"
+              aria-label="编辑"
+              title="编辑"
+              @click.stop="openEditForm(e)"
+            >
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+            </button>
+            <button
+              class="de-btn de-btn--danger"
+              type="button"
+              aria-label="删除"
+              title="删除"
+              @click.stop="handleDelete(e)"
+            >
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+          </div>
         </div>
       </div>
       <div class="day-events-empty" v-else>
@@ -366,6 +485,16 @@ onMounted(() => {
       </div>
     </div>
   </div>
+
+  <!-- ===== 全局 CRUD 表单弹窗（新增/编辑共用；fixed 覆盖全屏，不受 Calendar 容器裁剪影响）===== -->
+  <EventForm
+    v-model:visible="formVisible"
+    :default-date="selectedDateKey"
+    :editing-event="editingEvent"
+    @submit-create="handleSubmitCreate"
+    @submit-update="handleSubmitUpdate"
+    @delete="(id) => { const e = eventStore.events.find(x => x.id === id); if (e) handleDelete(e) }"
+  />
 </template>
 
 <style scoped>
@@ -420,10 +549,10 @@ onMounted(() => {
 .cal-nav-right {
   display: flex;
   align-items: center;
-  gap: 2px;                          /* 原 4px → 2px */
+  gap: 4px;                          /* 原 2px → 4px，容纳新增 + 按钮后保持呼吸感 */
 }
 .cal-today-btn {
-  margin-left: 4px;                   /* 原 6px → 4px */
+  margin-left: 2px;                   /* 原 4px → 2px，+ 按钮独立间距控制 */
   font-size: 10px;                    /* 原 11px → 10px */
   padding: 2px 7px !important;
   color: var(--color-primary);
@@ -680,6 +809,16 @@ onMounted(() => {
   background: var(--surface-bg);
   border: 1px solid var(--surface-border);
   font-size: 11px;                    /* 原 12px → 11px */
+  cursor: pointer;                    /* 整行可点击进入编辑 */
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+.day-event-row:hover {
+  background: var(--glass-bg-hover);
+  border-color: color-mix(in srgb, var(--color-primary) 16%, var(--surface-border));
+  transform: translateX(1px);
 }
 .day-event-type-dot {
   width: 5px;                         /* 原 7px → 5px */
@@ -726,5 +865,152 @@ onMounted(() => {
   .mymemo-cal :deep(.vuecal__weekdays-cell) { font-size: 9px !important; }
   .vc-dot { width: 3px; height: 3px; }
   .vc-indicators { gap: 1.5px; height: 5px; }
+}
+
+/* ==============================================================================
+ *  CRUD UI 样式
+ * ============================================================================== */
+
+/* —— .cal-host：不再需要作为 FAB 的定位容器，移除 relative 以避免层级副作用 —— */
+.cal-host {
+  z-index: 1;
+}
+
+/* —— 顶部新增「+」按钮：完全复用原 FAB（右下角）的玻璃质感，只是尺寸更小，融入 header 行 ——
+ *  · 玻璃背景 = --glass-bg (= db-chip 背景)
+ *  · 毛玻璃模糊/饱和度 = --glass-blur / --glass-saturate (= db-chip backdrop 同源)
+ *  · 边框 = --glass-border (= db-chip 边框，1px 半透明暖灰)
+ *  · 圆角 = --glass-radius (= db-chip 圆角 16px，取相同温度感)
+ *  · 阴影 = var(--glass-shadow) + var(--glass-highlight) (= db-chip 双重阴影：柔和投影 + 顶光)
+ *  · 尺寸 28×28，内部「+」居中，与 today 按钮视觉高度匹配
+ */
+.cal-add-btn {
+  position: relative;
+  margin-left: 4px;                    /* 与「今天」按钮之间留出呼吸感 */
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: min(var(--glass-radius, 16px), 10px);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
+  color: var(--color-text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out),
+    filter var(--duration-fast) var(--ease-out);
+}
+.cal-add-btn:hover {
+  background: var(--glass-bg-hover);
+  border-color: var(--glass-border-hover);
+  box-shadow: var(--glass-shadow-hover), var(--glass-highlight);
+  color: var(--color-primary);
+  transform: translateY(-1px) scale(1.04);
+  filter: brightness(1.03);
+}
+.cal-add-btn:active {
+  transform: translateY(0) scale(0.98);
+  filter: brightness(0.98);
+}
+
+/* —— 原右下角 FAB 样式保留（暂不删除，避免其他引用）—— */
+.cal-fab {
+  position: absolute;
+  right: 10px;
+  bottom: 6px;
+  z-index: 3;
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: min(var(--glass-radius, 16px), 12px);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
+  color: var(--color-text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out),
+    filter var(--duration-fast) var(--ease-out);
+  opacity: 0;                     /* 已弃用：彻底隐藏，避免旧样式被意外复用 */
+  pointer-events: none;
+}
+.cal-fab:hover {
+  background: var(--glass-bg-hover);
+  border-color: var(--glass-border-hover);
+  box-shadow: var(--glass-shadow-hover), var(--glass-highlight);
+  color: var(--color-primary);
+  transform: translateY(-1px) scale(1.04);
+  filter: brightness(1.03);
+}
+.cal-fab:active {
+  transform: translateY(0) scale(0.98);
+  filter: brightness(0.98);
+}
+
+/* —— 事件列表「编辑 / 删除」操作按钮：行尾出现（hover 或常驻，此处做常驻避免小屏看不见）—— */
+.day-event-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+  margin-left: auto;
+  opacity: 0;
+  transform: translateX(4px);
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+.day-event-row:hover .day-event-actions,
+.day-event-row:focus-within .day-event-actions {
+  opacity: 1;
+  transform: translateX(0);
+}
+.de-btn {
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border-radius: 6px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--color-text-tertiary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+.de-btn:hover {
+  background: var(--glass-bg-hover);
+  color: var(--color-primary);
+  border-color: color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+.de-btn--danger:hover {
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  color: var(--color-danger-light);
+  border-color: color-mix(in srgb, var(--color-danger) 28%, transparent);
 }
 </style>

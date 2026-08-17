@@ -17,10 +17,11 @@
  */
 import { RouterLink } from 'vue-router'
 import dayjs from 'dayjs'
-import { computed, onMounted } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import BaseCard from '@/components/base/BaseCard.vue'
 import BaseBadge from '@/components/base/BaseBadge.vue'
 import CalendarView from '@calendar/CalendarView.vue'
+import EventForm from '@calendar/EventForm.vue'
 import { useEventStore } from '@/stores/eventStore'
 import {
   filterEventsForDay,
@@ -28,6 +29,7 @@ import {
   dayEventSortKey,
 } from '@/services/eventCalendarMapper'
 import type { TimeEvent } from '@/types/event'
+import type { CreateEventInput, UpdateEventInput } from '@/services/eventTypes'
 
 const props = defineProps<{
   /**
@@ -87,6 +89,46 @@ const statChips = [
   { tag: '灵感', value: 9, accent: 'var(--color-accent)' },
 ] as const
 
+/* ==============================================================================
+ *  Dashboard 级别 CRUD UI（今日事件的编辑 / 删除 + 一份 EventForm 弹窗）
+ *  与 Calendar 内部的 CRUD 操作同一个 eventStore → Pinia 响应式会双向同步：
+ *    - 在 Dashboard 改了今日事件 → Calendar indicator + 选中日期列表立刻刷新
+ *    - 在 Calendar 改了今日事件 → Dashboard 今日事件立刻刷新
+ * ============================================================================== */
+const dbFormVisible = ref(false)
+const dbEditingEvent = ref<TimeEvent | null>(null)
+
+function openDbEdit(e: TimeEvent) {
+  dbEditingEvent.value = e
+  dbFormVisible.value = true
+}
+async function handleDbDelete(e: TimeEvent) {
+  const ok = window.confirm(`确定删除「${e.title}」吗？`)
+  if (!ok) return
+  try {
+    await eventStore.remove(e.id)
+  } catch (_err) {
+    // 忽略，eventStore.error 已持有文案
+  }
+}
+async function handleDbSubmitCreate(input: CreateEventInput) {
+  try {
+    await eventStore.create(input)
+    dbFormVisible.value = false
+  } catch (_err) {
+    /* 同上 */
+  }
+}
+async function handleDbSubmitUpdate(id: string, patch: UpdateEventInput) {
+  try {
+    await eventStore.update(id, patch)
+    dbFormVisible.value = false
+    dbEditingEvent.value = null
+  } catch (_err) {
+    /* 同上 */
+  }
+}
+
 onMounted(() => {
   eventStore.loadAll()
 })
@@ -131,6 +173,8 @@ onMounted(() => {
         <div
           v-for="e in eventsForToday" :key="e.id" class="db-event"
           :style="{ '--c': typeColorByType[e.type] ?? 'var(--color-text-tertiary)' }"
+          :title="`${typeLabelByType[e.type]} · 点击编辑`"
+          @click="openDbEdit(e)"
         >
           <span class="db-event-dot"></span>
           <div class="db-event-body">
@@ -142,6 +186,20 @@ onMounted(() => {
           <BaseBadge :color="typeColorByType[e.type] ?? 'var(--color-text-tertiary)'">
             {{ typeLabelByType[e.type] ?? e.type }}
           </BaseBadge>
+          <div class="db-event-actions">
+            <button
+              class="dbe-btn" type="button" aria-label="编辑" title="编辑"
+              @click.stop="openDbEdit(e)"
+            >
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+            </button>
+            <button
+              class="dbe-btn dbe-btn--danger" type="button" aria-label="删除" title="删除"
+              @click.stop="handleDbDelete(e)"
+            >
+              <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+            </button>
+          </div>
         </div>
       </div>
       <div v-else class="db-events-empty">
@@ -197,6 +255,8 @@ onMounted(() => {
           <div
             v-for="e in eventsForToday" :key="e.id" class="db-event"
             :style="{ '--c': typeColorByType[e.type] ?? 'var(--color-text-tertiary)' }"
+            :title="`${typeLabelByType[e.type]} · 点击编辑`"
+            @click="openDbEdit(e)"
           >
             <span class="db-event-dot"></span>
             <div class="db-event-body">
@@ -208,6 +268,20 @@ onMounted(() => {
             <BaseBadge :color="typeColorByType[e.type] ?? 'var(--color-text-tertiary)'">
               {{ typeLabelByType[e.type] ?? e.type }}
             </BaseBadge>
+            <div class="db-event-actions">
+              <button
+                class="dbe-btn" type="button" aria-label="编辑" title="编辑"
+                @click.stop="openDbEdit(e)"
+              >
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"/></svg>
+              </button>
+              <button
+                class="dbe-btn dbe-btn--danger" type="button" aria-label="删除" title="删除"
+                @click.stop="handleDbDelete(e)"
+              >
+                <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+              </button>
+            </div>
           </div>
         </div>
         <div v-else class="db-events-empty">
@@ -224,6 +298,16 @@ onMounted(() => {
       </main>
     </section>
   </div>
+
+  <!-- ===== 全局 CRUD 弹窗：无论 embedded 与否，都挂一份 fixed 级别弹窗 ===== -->
+  <EventForm
+    v-model:visible="dbFormVisible"
+    :default-date="todayKey"
+    :editing-event="dbEditingEvent"
+    @submit-create="handleDbSubmitCreate"
+    @submit-update="handleDbSubmitUpdate"
+    @delete="(id) => { const e = eventStore.events.find(x => x.id === id); if (e) handleDbDelete(e) }"
+  />
 </template>
 
 <style scoped>
@@ -452,6 +536,16 @@ onMounted(() => {
   border: 1px solid var(--surface-border);
   border-radius: 12px;
   border-left: 3px solid var(--c);
+  cursor: pointer;                        /* 整行可点击进入编辑 */
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+.db-event:hover {
+  background: var(--glass-bg-hover);
+  border-color: color-mix(in srgb, var(--color-primary) 18%, var(--surface-border));
+  transform: translateX(2px);
 }
 .db-event-dot {
   width: 8px;
@@ -497,6 +591,53 @@ onMounted(() => {
 .db-cal-wrap {
   width: min(100%, 620px);
   align-self: flex-start;   /* 不要拉伸 Calendar 到整个面板宽度，保持合适月历尺寸；左对齐 */
+}
+
+/* ==============================================================================
+ *  Dashboard 今日事件 · CRUD 编辑/删除按钮样式（与 Calendar day-event-actions 同温）
+ * ============================================================================== */
+.db-event-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 0 auto;
+  opacity: 0;
+  transform: translateX(4px);
+  transition:
+    opacity var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+.db-event:hover .db-event-actions,
+.db-event:focus-within .db-event-actions {
+  opacity: 1;
+  transform: translateX(0);
+}
+.dbe-btn {
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border-radius: 8px;
+  background: transparent;
+  border: 1px solid transparent;
+  color: var(--color-text-tertiary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out);
+}
+.dbe-btn:hover {
+  background: var(--glass-bg-hover);
+  color: var(--color-primary);
+  border-color: color-mix(in srgb, var(--color-primary) 18%, transparent);
+}
+.dbe-btn--danger:hover {
+  background: color-mix(in srgb, var(--color-danger) 12%, transparent);
+  color: var(--color-danger-light);
+  border-color: color-mix(in srgb, var(--color-danger) 28%, transparent);
 }
 
 /* ---------- 响应式：小屏压缩 gap / padding；DSL 逻辑对齐 ---------- */
