@@ -21,11 +21,13 @@ import type { CreateEventInput, UpdateEventInput } from '@/services/eventTypes'
 interface Props {
   visible: boolean
   defaultDate?: string // 'YYYY-MM-DD'，新增时的默认日期锚点
+  defaultType?: EventType // 新增时的默认类型（不传则为 calendar）
   editingEvent?: TimeEvent | null
 }
 
 const props = withDefaults(defineProps<Props>(), {
   defaultDate: () => dayjs().format('YYYY-MM-DD'),
+  defaultType: 'calendar',
   editingEvent: null,
 })
 
@@ -128,9 +130,9 @@ watch(
           break
       }
     } else {
-      // —— 新增模式：用 defaultDate 作为所有日期类字段的锚点 —— //
+      // —— 新增模式：用 defaultDate 作为所有日期类字段的锚点；defaultType 作为初始类型 —— //
       const d = props.defaultDate || dayjs().format('YYYY-MM-DD')
-      form.type = 'calendar'
+      form.type = props.defaultType ?? 'calendar'
       form.title = ''
       form.notes = ''
       form.status = 'pending'

@@ -10,6 +10,18 @@ const router = createRouter({
       component: () => import('@/views/DashboardView.vue'),
     },
     {
+      // 事件全览：后续开发，本次仅预留入口 + 占位页
+      path: '/events',
+      name: 'events',
+      component: () => import('@/views/EventsPlaceholderView.vue'),
+    },
+    {
+      // 灵感：独立页面（本次重点开发）
+      path: '/ideas',
+      name: 'ideas',
+      component: () => import('@/views/IdeasView.vue'),
+    },
+    {
       // Design Lab：独立视觉调试工具（design-lab/），不作为默认首页
       path: '/design-lab',
       name: 'design-lab',
