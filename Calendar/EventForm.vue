@@ -166,7 +166,8 @@ function handleSubmit() {
     const patch: UpdateEventInput = {
       title: form.title.trim(),
       notes: form.notes,
-      status: form.status,
+      // idea 不参与任务状态（沿用归档机制），不写入 status；其余类型保留状态编辑能力
+      ...(e.type !== 'idea' ? { status: form.status } : {}),
     }
     switch (e.type) {
       case 'calendar':
@@ -235,8 +236,10 @@ function handleSubmit() {
         break
       }
       case 'idea':
+        // idea 不参与任务状态：不写 status，让 service 默认 pending，后续仅靠归档管理
         input = {
-          ...base,
+          title: form.title.trim(),
+          notes: form.notes,
           type: 'idea',
           content: form.content,
           archived: form.archived,
@@ -414,8 +417,8 @@ const typeColors: Record<EventType, string> = {
             </label>
           </template>
 
-          <!-- 通用：状态（新增时默认 pending，编辑时可改） -->
-          <div class="ef-row">
+          <!-- 通用：状态（idea 无任务状态语义，不显示；其余类型新增默认 pending，编辑时可改） -->
+          <div v-if="form.type !== 'idea'" class="ef-row">
             <span class="ef-label">状态</span>
             <div class="ef-status-tabs">
               <button
@@ -496,9 +499,17 @@ const typeColors: Record<EventType, string> = {
   align-items: center;
   justify-content: center;
   padding: 24px;
-  background: color-mix(in srgb, var(--color-primary) 22%, rgba(255, 255, 255, 0.35));
-  backdrop-filter: blur(6px);
-  -webkit-backdrop-filter: blur(6px);
+  /* 暖色半透明遮罩：加深不透明度，确保弹窗打开时背后的内容被明显压暗，保持玻璃拟态 */
+  background: color-mix(in srgb, var(--color-primary) 45%, rgba(255, 255, 255, 0.28));
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+/* 弹窗本体：用更高不透明度的玻璃（--glass-bg-active）叠暖米白底色，
+   避免 BaseCard 默认 --glass-bg(≈50%) 过透而透出后面内容 */
+.ef-mask .ef-pop {
+  background: color-mix(in srgb, var(--glass-bg-active) 94%, var(--color-bg-base));
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
 }
 .ef-pop {
   width: min(100%, 440px);

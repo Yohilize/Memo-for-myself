@@ -7,7 +7,7 @@
  *
  * 导航定义（本次迭代）：
  *   · 📅 仪表盘 /      →  Dashboard（日历作为核心组件嵌入其中，不是独立页面）
- *   · 📋 事件   /events →  事件全览总页面（后续开发，本次预留占位入口）
+ *   · 📋 事件   /events →  事件全览总页面（汇总 calendar/deadline/duration，idea 不进入）
  *   · 💡 灵感   /ideas  →  独立灵感页面（本次重点开发）
  *
  * 图标全部使用 Emoji，等后续有素材再替换。
@@ -50,7 +50,7 @@ function isActive(path: string) {
         to="/events"
         class="db-nav-item"
         :class="{ active: isActive('/events') }"
-        aria-label="事件全览（开发中）"
+        aria-label="事件全览"
         title="事件全览"
       >📋</RouterLink>
       <RouterLink

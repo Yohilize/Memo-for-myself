@@ -10,10 +10,10 @@ const router = createRouter({
       component: () => import('@/views/DashboardView.vue'),
     },
     {
-      // 事件全览：后续开发，本次仅预留入口 + 占位页
+      // 事件全览：所有时间管理事件（calendar/deadline/duration）的时间顺序总览，idea 不进入
       path: '/events',
       name: 'events',
-      component: () => import('@/views/EventsPlaceholderView.vue'),
+      component: () => import('@/views/EventsView.vue'),
     },
     {
       // 灵感：独立页面（本次重点开发）

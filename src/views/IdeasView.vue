@@ -5,12 +5,13 @@
  * 数据链路：完全复用现有 Pinia → Service → Repository → IndexedDB 链路
  *   · 数据模型：直接使用 IdeaEvent（type:'idea'，带 content / archived 字段）
  *   · Store：useEventStore（eventsByType.idea 直接拿到所有灵感）
- *   · CRUD：复用 @calendar/EventForm（已完整支持 Idea 类型：标题、内容、标签、状态、归档）
+ *   · CRUD：复用 @calendar/EventForm（已完整支持 Idea 类型：标题、内容、归档）
  *
  * 本次范围：
  *   · 展示所有灵感，默认按 created_at 倒序
  *   · 支持切换「显示已归档」
  *   · 支持新增、编辑、删除、归档/取消归档
+ *   · idea 无任务状态语义：不显示 status，仅靠归档/取消归档管理
  *   · 空状态（无灵感时的简洁提示）
  *   · 视觉与 Dashboard 保持一致（同套玻璃面板 + AppSidebar + Design Token）
  */
@@ -115,13 +116,6 @@ function formatCreatedAt(iso: string) {
   return d.format('YYYY年M月D日')
 }
 
-const statusLabel: Record<string, string> = {
-  pending: '待办',
-  in_progress: '进行中',
-  completed: '已完成',
-  cancelled: '已取消',
-}
-
 onMounted(() => {
   eventStore.loadAll()
 })
@@ -138,7 +132,7 @@ onMounted(() => {
             <div class="ideas-title">💡 灵感</div>
             <div class="ideas-sub">
               共 <strong>{{ ideaStats.total }}</strong> 条，
-              进行中 <strong>{{ ideaStats.active }}</strong> · 已归档 <strong>{{ ideaStats.archived }}</strong>
+              未归档 <strong>{{ ideaStats.active }}</strong> · 已归档 <strong>{{ ideaStats.archived }}</strong>
             </div>
           </div>
           <div class="ideas-head-right">
@@ -176,7 +170,7 @@ onMounted(() => {
             class="idea-card"
             :class="{ archived: idea.archived }"
           >
-            <!-- 卡片头：标题 + 状态 + 操作 -->
+            <!-- 卡片头：标题 + 归档标记 + 操作 -->
             <div class="idea-card-head">
               <div class="idea-title-row">
                 <h3 class="idea-title">{{ idea.title }}</h3>
@@ -185,17 +179,6 @@ onMounted(() => {
                   color="var(--color-text-tertiary)"
                   variant="soft"
                 >已归档</BaseBadge>
-                <BaseBadge
-                  v-else-if="idea.status"
-                  :color="
-                    idea.status === 'completed'
-                      ? 'var(--color-success)'
-                      : idea.status === 'cancelled'
-                        ? 'var(--color-text-tertiary)'
-                        : 'var(--color-primary)'
-                  "
-                  variant="soft"
-                >{{ statusLabel[idea.status] }}</BaseBadge>
               </div>
               <div class="idea-actions" @click.stop>
                 <button
