@@ -3,6 +3,7 @@ import VueCal from 'vue-cal'
 import 'vue-cal/dist/vuecal.css'
 import dayjs from 'dayjs'
 import { computed, onMounted, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import BaseCard from '@/components/base/BaseCard.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
 import BaseConfirmDialog from '@/components/base/BaseConfirmDialog.vue'
@@ -37,6 +38,12 @@ const emit = defineEmits<{
 
 const embedded = computed(() => !!props.embedded)
 const eventStore = useEventStore()
+const router = useRouter()
+
+/** 独立页返回按钮：使用 Vue Router 回到 Dashboard（/）；embedded 模式不渲染 */
+function goBackHome() {
+  router.push('/')
+}
 
 /** 当前显示月份：MYMEMO 内部计算视图月标题 + Today 高光条件的辅助状态。
  *  注：Vue Cal 4.x 实际上不存在 viewDate prop；此处只做内部状态，不传给 Vue Cal。
@@ -262,6 +269,15 @@ onMounted(() => {
       <!-- 自定义头部：左"日历"标识 + 右月份控件 + 新增按钮；全部自管，不使用 VueCal 默认 toolbar -->
       <div class="cal-header">
         <div class="cal-nav-left">
+          <button
+            class="cal-back-btn"
+            type="button"
+            aria-label="返回 Dashboard"
+            title="返回"
+            @click="goBackHome"
+          >
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 12H5"/><path d="m12 19-7-7 7-7"/></svg>
+          </button>
           <svg class="cal-ic" aria-hidden="true" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M3 10h18"/><path d="M8 3v4M16 3v4"/></svg>
           <span class="cal-title-label">日历</span>
         </div>
@@ -580,6 +596,41 @@ onMounted(() => {
   font-weight: var(--font-semibold);
   color: var(--color-text-primary);
   letter-spacing: 0.01em;
+}
+/* —— 独立页返回按钮：轻量玻璃胶囊，与「+」新增按钮同源质感 —— */
+.cal-back-btn {
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: min(var(--glass-radius, 16px), 10px);
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
+  color: var(--color-text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+.cal-back-btn:hover {
+  background: var(--glass-bg-hover);
+  border-color: var(--glass-border-hover);
+  box-shadow: var(--glass-shadow-hover), var(--glass-highlight);
+  color: var(--color-primary);
+  transform: translateX(-1px);
+}
+.cal-back-btn:active {
+  transform: translateX(0) scale(0.96);
 }
 .cal-nav-right {
   display: flex;

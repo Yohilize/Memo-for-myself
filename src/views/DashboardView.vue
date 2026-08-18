@@ -65,8 +65,6 @@ const eventsForToday = computed<TimeEvent[]>(() => {
   )
 })
 
-const todayCountChip = computed(() => eventsForToday.value.length)
-
 const typeColorByType: Record<string, string> = {
   calendar: 'var(--color-event-calendar)',
   deadline: 'var(--color-event-deadline)',
@@ -80,13 +78,31 @@ const typeLabelByType: Record<string, string> = {
   idea: '灵感',
 }
 
-// —— Dashboard 静态占位统计（Todo/Inspiration 业务系统未上线，保持 Preview 视觉） —— //
-// ⚠️ 保留静态，不为了填数字新建业务 Store；未来 Todo/Inspiration 上线后再替换为 computed。
-const statChips = [
-  { tag: '待办', value: 5, accent: 'var(--color-primary)' },
-  { tag: '今日完成', value: 2, accent: 'var(--color-success)' },
-  { tag: '灵感', value: 9, accent: 'var(--color-accent)' },
-] as const
+// —— Dashboard 统计块：直接接真实 Event Store（新增/编辑/删除后 Pinia 响应式自动刷新） —— //
+//  · 待办：未完成事件（pending / in_progress；cancelled 为终止态，不计入待办）
+//  · 今日完成：落在今天 且 status = completed 的事件（与 filterEventsForDay 同规则）
+//  · 灵感：type = idea 的事件
+const statChips = computed(() => [
+  {
+    tag: '待办',
+    value: eventStore.events.filter(
+      (e) => e.status !== 'completed' && e.status !== 'cancelled',
+    ).length,
+    accent: 'var(--color-primary)',
+  },
+  {
+    tag: '今日完成',
+    value: filterEventsForDay(eventStore.events ?? [], todayKey).filter(
+      (e) => e.status === 'completed',
+    ).length,
+    accent: 'var(--color-success)',
+  },
+  {
+    tag: '灵感',
+    value: eventStore.events.filter((e) => e.type === 'idea').length,
+    accent: 'var(--color-accent)',
+  },
+])
 
 /* ==============================================================================
  *  Dashboard 级别 CRUD UI（今日事件的编辑 / 删除 + 一份 EventForm 弹窗）
@@ -172,7 +188,7 @@ onMounted(() => {
         <BaseCard v-for="c in statChips" :key="c.tag" padding="md" class="db-chip">
           <div class="chip-title">{{ c.tag }}</div>
           <div class="chip-val" :style="{ color: c.accent }">
-            {{ c.tag === '今日完成' ? todayCountChip : c.value }}
+            {{ c.value }}
           </div>
         </BaseCard>
       </div>
@@ -218,7 +234,7 @@ onMounted(() => {
           <BaseCard v-for="c in statChips" :key="c.tag" padding="md" class="db-chip">
             <div class="chip-title">{{ c.tag }}</div>
             <div class="chip-val" :style="{ color: c.accent }">
-              {{ c.tag === '今日完成' ? todayCountChip : c.value }}
+              {{ c.value }}
             </div>
           </BaseCard>
         </div>
