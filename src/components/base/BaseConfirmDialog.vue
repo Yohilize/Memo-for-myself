@@ -14,13 +14,15 @@ const emit = defineEmits<{
 </script>
 
 <template>
-  <Transition name="confirm-fade">
-    <div
-      v-if="visible"
-      class="confirm-mask"
-      role="presentation"
-      @click.self="emit('cancel')"
-    >
+  <!-- Teleport 到 body：与弹窗遮罩一致，避免被小组件 stacking context 困住而遮不住同级内容 -->
+  <Teleport to="body">
+    <Transition name="confirm-fade">
+      <div
+        v-if="visible"
+        class="confirm-mask"
+        role="presentation"
+        @click.self="emit('cancel')"
+      >
       <BaseCard
         class="confirm-dialog"
         padding="md"
@@ -41,6 +43,7 @@ const emit = defineEmits<{
       </BaseCard>
     </div>
   </Transition>
+  </Teleport>
 </template>
 
 <style scoped>

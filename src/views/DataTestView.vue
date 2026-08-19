@@ -73,7 +73,7 @@ async function deleteEvent(id: string) {
 }
 
 const typeLabels: Record<EventType, string> = {
-  calendar: '日历事件',
+  calendar: '行程',
   deadline: 'Deadline',
   duration: '时间块',
   idea: '灵感',
@@ -97,7 +97,7 @@ const typeColors: Record<EventType, string> = {
 
       <div class="create-form">
         <select v-model="selectedType" class="type-select">
-          <option value="calendar">日历事件</option>
+          <option value="calendar">行程</option>
           <option value="deadline">Deadline</option>
           <option value="duration">时间块</option>
           <option value="idea">灵感</option>

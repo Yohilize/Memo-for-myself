@@ -14,7 +14,7 @@ export interface DateIndicator {
  *  - CalendarEvent → event_date
  *  - DeadlineEvent → due_date（取日期部分）
  *  - DurationEvent → 从 start_time 到 end_time 跨的每一天，都算有事件
- *  - IdeaEvent     → created_at（取日期部分），挂在创建日做轻量提示
+ *  - IdeaEvent     → 不进入日历（数据映射层过滤，不产生任何日期指示器/事件标记/事件点）
  */
 export function mapEventsToDateIndicators(
   events: TimeEvent[],
@@ -139,8 +139,9 @@ export function dayEventSortKey(e: TimeEvent, dayKey: string): string {
 }
 
 /**
- * 返回一个事件「影响到」哪些日期（用于 indicator 打点，与 filterEventsForDay 规则对齐，
- * 区别是 IdeaEvent 这里仍然按创建日打点，因为日历上小圆点只是「哪天有东西」的提示）。
+ * 返回一个事件「影响到」哪些日期（用于 indicator 打点，与 filterEventsForDay 规则对齐）。
+ * 注意：IdeaEvent 不进入日历 —— 灵感不参与时间管理，不产生日期指示器 / 事件标记 / 事件点，
+ * 所以这里为其返回空列表（数据映射层过滤，而非 CSS 隐藏）。
  */
 function eventDates(e: TimeEvent): string[] {
   switch (e.type) {
@@ -166,9 +167,8 @@ function eventDates(e: TimeEvent): string[] {
       }
       return result
     }
-    case 'idea': {
-      const d = dayjs(e.created_at)
-      return d.isValid() ? [d.format('YYYY-MM-DD')] : []
-    }
+    default:
+      // idea：灵感不走时间管理日历，返回空日期列表
+      return []
   }
 }

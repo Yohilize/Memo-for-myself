@@ -14,6 +14,8 @@ import BaseCard from '@/components/base/BaseCard.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
 import BaseInput from '@/components/base/BaseInput.vue'
 import BaseBadge from '@/components/base/BaseBadge.vue'
+import DatePicker from './DatePicker.vue'
+import TimePicker from './TimePicker.vue'
 import { useDashboardPinnedEvent } from '@/composables/useDashboardPinnedEvent'
 import type { TimeEvent, EventType, Priority, EventStatus } from '@/types/event'
 import type { CreateEventInput, UpdateEventInput } from '@/services/eventTypes'
@@ -55,7 +57,8 @@ const form = reactive({
   notes: '',
   // calendar
   event_date: '',
-  all_day: false,
+  // 「无时间要求」默认开启：仅需日期，无需具体时间
+  all_day: true,
   event_time: '09:00',
   duration_min: null as number | null,
   // deadline
@@ -138,7 +141,8 @@ watch(
       form.notes = ''
       form.status = 'pending'
       form.event_date = d
-      form.all_day = false
+      // 「无时间要求」默认开启：仅需日期，无需具体时间
+      form.all_day = true
       form.event_time = '09:00'
       form.duration_min = null
       form.due_date = d
@@ -266,7 +270,7 @@ function handleDelete() {
 
 /* —— 类型 label/颜色：直接复用现有 Calendar 中已有的映射表语义 —— */
 const typeLabels: Record<EventType, string> = {
-  calendar: '日历事件',
+  calendar: '行程',
   deadline: 'Deadline',
   duration: '时间块',
   idea: '灵感',
@@ -280,9 +284,16 @@ const typeColors: Record<EventType, string> = {
 </script>
 
 <template>
-  <!-- ===== 遮罩层：轻量磨砂，复用 glass 派生透明度 ===== -->
-  <Transition name="fade">
-    <div v-if="visible" class="ef-mask" @click.self="close" aria-label="新增/编辑事件">
+  <!--
+    ===== 遮罩层：轻量磨砂，复用 glass 派生透明度 =====
+    通过 Teleport 挂载到 body：
+    弹窗常被渲染在 Dashboard 的小组件（如日历 widget，z-index:1 的 stacking context）内部，
+    若就地 fixed，其内部再高的 z-index 也越不过兄弟 widget（如"固定事件"Pin），
+    导致 Pin 不被遮罩。Teleport 到 body 让遮罩成为最顶层，统一压盖所有 Dashboard 内容。
+  -->
+  <Teleport to="body">
+    <Transition name="fade">
+      <div v-if="visible" class="ef-mask" @click.self="close" aria-label="新增/编辑事件">
       <BaseCard padding="md" class="ef-pop" role="dialog" aria-modal="true">
         <!-- === 头部：标题 + 类型标识 === -->
         <header class="ef-head">
@@ -325,21 +336,41 @@ const typeColors: Record<EventType, string> = {
 
           <!-- ====== 各类型专属字段（用 transition-group 做轻切换即可）====== -->
 
-          <!-- Calendar -->
+          <!-- Calendar / 行程 -->
           <template v-if="form.type === 'calendar'">
-            <label class="ef-row">
+            <div class="ef-row">
               <span class="ef-label">日期</span>
-              <input v-model="form.event_date" type="date" class="ef-date-input" />
-            </label>
-            <div class="ef-row ef-inline">
-              <label class="ef-checkbox">
-                <input v-model="form.all_day" type="checkbox" />
-                <span>全天事件</span>
-              </label>
-              <label v-if="!form.all_day" class="ef-time-field">
+              <DatePicker v-model="form.event_date" />
+            </div>
+
+            <!-- 「无时间要求」开关：开启仅需日期；关闭时显示具体时间（含滚轮式时间选择器） -->
+            <div class="ef-row">
+              <div class="ef-switch-field">
+                <div class="ef-switch-row">
+                  <span class="ef-label">无时间要求</span>
+                  <button
+                    type="button"
+                    class="ef-switch"
+                    :class="{ 'is-on': form.all_day }"
+                    role="switch"
+                    aria-label="无时间要求"
+                    :aria-checked="form.all_day"
+                    @click="form.all_day = !form.all_day"
+                  >
+                    <span class="ef-switch-knob"></span>
+                  </button>
+                </div>
+                <p class="ef-field-hint">
+                  {{ form.all_day ? '仅需选择日期，无需设置具体时间' : '已关闭：请设置行程具体时间' }}
+                </p>
+              </div>
+            </div>
+
+            <div v-if="!form.all_day" class="ef-row ef-inline">
+              <div class="ef-time-field">
                 <span class="ef-label">时间</span>
-                <input v-model="form.event_time" type="time" class="ef-time-input" />
-              </label>
+                <TimePicker v-model="form.event_time" />
+              </div>
               <label class="ef-time-field">
                 <span class="ef-label">时长（分钟）</span>
                 <input
@@ -356,14 +387,14 @@ const typeColors: Record<EventType, string> = {
           <!-- Deadline -->
           <template v-if="form.type === 'deadline'">
             <div class="ef-row ef-inline">
-              <label class="ef-date-field">
+              <div class="ef-date-field">
                 <span class="ef-label">截止日期</span>
-                <input v-model="form.due_date" type="date" class="ef-date-input" />
-              </label>
-              <label class="ef-time-field">
+                <DatePicker v-model="form.due_date" />
+              </div>
+              <div class="ef-time-field">
                 <span class="ef-label">截止时间</span>
-                <input v-model="form.due_time" type="time" class="ef-time-input" />
-              </label>
+                <TimePicker v-model="form.due_time" placeholder="无具体时间" allow-clear />
+              </div>
             </div>
             <div class="ef-row">
               <span class="ef-label">优先级</span>
@@ -383,19 +414,19 @@ const typeColors: Record<EventType, string> = {
 
           <!-- Duration -->
           <template v-if="form.type === 'duration'">
-            <label class="ef-row">
+            <div class="ef-row">
               <span class="ef-label">日期</span>
-              <input v-model="form.duration_date" type="date" class="ef-date-input" />
-            </label>
+              <DatePicker v-model="form.duration_date" />
+            </div>
             <div class="ef-row ef-inline">
-              <label class="ef-time-field">
+              <div class="ef-time-field">
                 <span class="ef-label">开始</span>
-                <input v-model="form.start_hm" type="time" class="ef-time-input" />
-              </label>
-              <label class="ef-time-field">
+                <TimePicker v-model="form.start_hm" />
+              </div>
+              <div class="ef-time-field">
                 <span class="ef-label">结束</span>
-                <input v-model="form.end_hm" type="time" class="ef-time-input" />
-              </label>
+                <TimePicker v-model="form.end_hm" />
+              </div>
             </div>
           </template>
 
@@ -488,6 +519,7 @@ const typeColors: Record<EventType, string> = {
       </BaseCard>
     </div>
   </Transition>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -655,6 +687,62 @@ const typeColors: Record<EventType, string> = {
 }
 .ef-checkbox input[type='checkbox'] {
   accent-color: var(--color-primary);
+}
+
+/* 「无时间要求」开关：玻璃质感 switch */
+.ef-switch-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+}
+.ef-switch-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+.ef-switch-row .ef-label {
+  margin-bottom: 0;
+}
+.ef-switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid var(--surface-border);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-text-tertiary) 18%, transparent);
+  cursor: pointer;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+.ef-switch .ef-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #ffffff;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.22);
+  transition: transform var(--duration-fast) var(--ease-out);
+}
+.ef-switch.is-on {
+  background: var(--gradient-primary);
+  border-color: transparent;
+}
+.ef-switch.is-on .ef-switch-knob {
+  transform: translateX(18px);
+}
+.ef-field-hint {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--color-text-tertiary);
 }
 
 /* 优先级 / 状态 Tabs：柔化 pill */

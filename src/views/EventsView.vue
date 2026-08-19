@@ -24,7 +24,7 @@ import type { CreateEventInput, UpdateEventInput } from '@/services/eventTypes'
 const eventStore = useEventStore()
 
 const typeLabelByType: Record<string, string> = {
-  calendar: '日历事件',
+  calendar: '行程',
   deadline: 'Deadline',
   duration: '时间块',
   idea: '灵感',
@@ -223,7 +223,7 @@ onMounted(() => {
           <div class="events-empty-ic" aria-hidden="true">🗓️</div>
           <div class="events-empty-title">还没有时间事件</div>
           <div class="events-empty-sub">
-            日历事件、Deadline、时间块会按时间顺序汇总在这里。<br />
+            行程、Deadline、时间块会按时间顺序汇总在这里。<br />
             点击右上角「新增事件」开始规划吧。
           </div>
         </div>

@@ -72,7 +72,7 @@ const typeColorByType: Record<string, string> = {
   idea: 'var(--color-event-idea)',
 }
 const typeLabelByType: Record<string, string> = {
-  calendar: '日历事件',
+  calendar: '行程',
   deadline: 'Deadline',
   duration: '时间块',
   idea: '灵感',
