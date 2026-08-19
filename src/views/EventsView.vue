@@ -249,7 +249,7 @@ onMounted(() => {
                   <div class="tl-event-title-row">
                     <span class="tl-event-title">{{ e.title }}</span>
                     <BaseBadge
-                      v-if="e.status"
+                      v-if="e.type !== 'idea' && e.status"
                       :color="statusBadgeColor(e.status)"
                       variant="soft"
                     >{{ statusLabelByStatus[e.status] }}</BaseBadge>

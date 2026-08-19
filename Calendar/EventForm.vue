@@ -100,7 +100,8 @@ watch(
       form.type = e.type
       form.title = e.title
       form.notes = e.notes
-      form.status = e.status
+      // idea 无任务状态，仅归档管理；任务类型才回填 status
+      if (e.type !== 'idea') form.status = e.status
       switch (e.type) {
         case 'calendar':
           form.event_date = e.event_date

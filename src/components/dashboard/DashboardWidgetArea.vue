@@ -249,8 +249,10 @@ function onDragStart(widgetId: DashboardWidgetId, event: PointerEvent): void {
               {{ pinnedDateText(pinnedEvent) }} · {{ pinnedTimeText(pinnedEvent) }}
             </span>
             <span class="db-pinned-meta">
-              {{ props.typeLabelByType[pinnedEvent.type] ?? pinnedEvent.type }} ·
-              {{ statusLabelByStatus[pinnedEvent.status] ?? pinnedEvent.status }}
+              {{ props.typeLabelByType[pinnedEvent.type] ?? pinnedEvent.type }}
+              <template v-if="pinnedEvent.type !== 'idea'">
+                · {{ statusLabelByStatus[pinnedEvent.status] ?? pinnedEvent.status }}
+              </template>
             </span>
           </button>
         </template>

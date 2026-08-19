@@ -50,7 +50,6 @@ export interface CreateIdeaInput {
   notes?: string
   content?: string
   tags?: string[]
-  status?: EventStatus
   archived?: boolean
 }
 

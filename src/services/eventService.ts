@@ -30,7 +30,6 @@ export const eventService = {
       title: input.title.trim(),
       notes: input.notes ?? '',
       tags: input.tags ?? [],
-      status: input.status ?? 'pending',
       created_at: now,
       updated_at: now,
     }
@@ -42,6 +41,7 @@ export const eventService = {
         event = {
           ...base,
           type: 'calendar',
+          status: input.status ?? 'pending',
           event_date: input.event_date,
           all_day: input.all_day ?? false,
           event_time: input.event_time ?? '09:00',
@@ -52,6 +52,7 @@ export const eventService = {
         event = {
           ...base,
           type: 'deadline',
+          status: input.status ?? 'pending',
           due_date: input.due_date,
           priority: input.priority ?? 'medium',
         }
@@ -60,11 +61,13 @@ export const eventService = {
         event = {
           ...base,
           type: 'duration',
+          status: input.status ?? 'pending',
           start_time: input.start_time,
           end_time: input.end_time,
         }
         break
       case 'idea':
+        // idea 不参与任务跟踪：不写入 status，仅归档/取消归档（archived）管理
         event = {
           ...base,
           type: 'idea',

@@ -79,21 +79,25 @@ const typeLabelByType: Record<string, string> = {
 }
 
 // —— Dashboard 统计块：直接接真实 Event Store（新增/编辑/删除后 Pinia 响应式自动刷新） —— //
-//  · 待办：未完成事件（pending / in_progress；cancelled 为终止态，不计入待办）
-//  · 今日完成：落在今天 且 status = completed 的事件（与 filterEventsForDay 同规则）
+//  · 待办：未完成任务（仅 calendar/deadline/duration；idea 无任务状态，不计入）
+//          累计 status ≈ pending / in_progress（cancelled 为终止态，不计入待办）
+//  · 今日完成：落在今天 且 status = completed 的任务事件（idea 不参与）
 //  · 灵感：type = idea 的事件
 const statChips = computed(() => [
   {
     tag: '待办',
     value: eventStore.events.filter(
-      (e) => e.status !== 'completed' && e.status !== 'cancelled',
+      (e) =>
+        e.type !== 'idea' &&
+        e.status !== 'completed' &&
+        e.status !== 'cancelled',
     ).length,
     accent: 'var(--color-primary)',
   },
   {
     tag: '今日完成',
     value: filterEventsForDay(eventStore.events ?? [], todayKey).filter(
-      (e) => e.status === 'completed',
+      (e) => e.type !== 'idea' && e.status === 'completed',
     ).length,
     accent: 'var(--color-success)',
   },
