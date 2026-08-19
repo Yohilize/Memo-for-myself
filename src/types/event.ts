@@ -45,11 +45,17 @@ export interface DeadlineEvent extends StatusEventBase {
   priority: Priority
 }
 
-/** Duration：时间块，有开始和结束 */
+/**
+ * Duration：时间块，表示一个跨日期的区间。
+ *  - start_date：开始日期（必填）
+ *  - end_date：结束日期；null 表示「已开始、暂定结束日期」的开放区间
+ *  - color：日历中色块的可视化颜色（hex），仅影响展示，不进入业务逻辑
+ */
 export interface DurationEvent extends StatusEventBase {
   type: 'duration'
-  start_time: string // ISO 8601
-  end_time: string // ISO 8601
+  start_date: string // 'YYYY-MM-DD'
+  end_date: string | null // 'YYYY-MM-DD'；null = 未知结束日期
+  color?: string // 色块颜色（hex）
 }
 
 /** Idea：灵感记录（无任务状态，仅靠 archived 归档/取消归档管理） */

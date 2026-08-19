@@ -2,7 +2,7 @@
 import VueCal from 'vue-cal'
 import 'vue-cal/dist/vuecal.css'
 import dayjs from 'dayjs'
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
 import BaseCard from '@/components/base/BaseCard.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
@@ -15,8 +15,9 @@ import {
   dayEventTimeLabel,
   dayEventSortKey,
 } from '@/services/eventCalendarMapper'
-import type { TimeEvent } from '@/types/event'
+import type { TimeEvent, DurationEvent } from '@/types/event'
 import type { CreateEventInput, UpdateEventInput } from '@/services/eventTypes'
+import { DEFAULT_DURATION_COLOR } from '@/services/eventService'
 
 /**
  * CalendarView 可在两种模式下使用：
@@ -162,21 +163,23 @@ function setSelectedDate(raw: Date | string | null | undefined) {
   selectedDateKey.value = key
 }
 
-function onCellClick(payload: unknown) {
-  if (payload instanceof Date) {
-    setSelectedDate(payload)
-    return
-  }
+/** 从 Vue Cal 的 cell 载荷中解析日期键 'YYYY-MM-DD' */
+function cellKeyOf(payload: unknown): string | null {
+  if (payload instanceof Date) return dayjs(payload).format('YYYY-MM-DD')
   if (payload && typeof payload === 'object') {
     const obj = payload as Record<string, unknown>
-    if (obj.date instanceof Date) {
-      setSelectedDate(obj.date)
-      return
-    }
-    if (typeof obj.formattedDate === 'string') {
-      setSelectedDate(obj.formattedDate as string)
-    }
+    if (obj.date instanceof Date) return dayjs(obj.date).format('YYYY-MM-DD')
+    if (typeof obj.formattedDate === 'string') return obj.formattedDate as string
   }
+  return null
+}
+
+function onCellClick(payload: unknown) {
+  const key = cellKeyOf(payload)
+  if (!key) return
+  setSelectedDate(key)
+  // 结束日期选择模式：单击命中的日期即作为预览终点
+  if (durSelect.active) updatePreviewEnd(key)
 }
 
 /** dot 颜色：全部走 tokens.css 语义变量 */
@@ -191,8 +194,172 @@ function orderedTypes(dKey: string): string[] {
   const ind = indicators.value[dKey]
   if (!ind) return []
   const order: string[] = ['deadline', 'duration', 'calendar', 'idea']
-  return order.filter((t) => ind.byType[t as never] > 0)
+  return order.filter((t) => {
+    // 开启「显示时间块」时，duration 用色块呈现，不再叠加小圆点
+    if (t === 'duration' && showDurationBlocks.value) return false
+    return ind.byType[t as never] > 0
+  })
 }
+
+/* ==============================================================================
+ *  时间块色块：生成「显示时间块」开关、覆盖映射、lane 分配与双击交互
+ * ============================================================================== */
+/**
+ * 日历中「显示时间块」开关。
+ * 开启：有明确结束日期的时间块以对应颜色在对应日期上连成色块；无结束日期的只在开始日期显示一格。
+ * 关闭：退回传统小圆点 indicator。
+ */
+const showDurationBlocks = ref(true)
+
+/** 无结束日期的时间块 → 双击其开始日期，进入「选择结束日期」模式 */
+const durSelect = reactive({ active: false, blockId: '' })
+/** 选择模式下预览到的结束日期（>= 开始日期） */
+const previewEndKey = ref<string | null>(null)
+/** 「将此时间块结束于 X？」确认弹窗 */
+const durConfirm = reactive({ visible: false, blockId: '', endKey: '' })
+
+function toggleDurationBlocks() {
+  showDurationBlocks.value = !showDurationBlocks.value
+  if (!showDurationBlocks.value) exitDurSelect()
+}
+
+function allDurationBlocks(): DurationEvent[] {
+  return (eventStore.events ?? []).filter((e): e is DurationEvent => e.type === 'duration')
+}
+
+/** 某个时间块在当前交互下的「有效结束日期」（选择预览期间取 preview） */
+function effEndKey(b: DurationEvent): string {
+  if (durSelect.active && b.id === durSelect.blockId && previewEndKey.value) {
+    return previewEndKey.value
+  }
+  return b.end_date ?? b.start_date
+}
+
+/** 按日期聚合覆盖该日的时间块（仅开启开关并展示颜色块时计算） */
+const durCovers = computed<Record<string, DurationEvent[]>>(() => {
+  const map: Record<string, DurationEvent[]> = {}
+  if (!showDurationBlocks.value) return map
+  for (const b of allDurationBlocks()) {
+    const s = dayjs(b.start_date)
+    const end = dayjs(effEndKey(b))
+    if (!s.isValid() || !end.isValid() || end.isBefore(s, 'day')) continue
+    let cur = s
+    let guard = 0
+    while (cur.isBefore(end) || cur.isSame(end, 'day')) {
+      const k = cur.format('YYYY-MM-DD')
+      ;(map[k] ??= []).push(b)
+      cur = cur.add(1, 'day')
+      if (++guard > 1000) break
+    }
+  }
+  return map
+})
+
+/**
+ * 为每个时间块分配一条纵向「泳道」，使同一天重叠的色块上下错开、互不覆盖；
+ * 同一块在整个区间内泳道固定，跨格/跨行连续。贪心区间着色。
+ */
+const durLanes = computed<Record<string, number>>(() => {
+  const lanes: Record<string, number> = {}
+  const blocks = allDurationBlocks().sort((a, b) =>
+    a.start_date < b.start_date ? -1 : a.start_date > b.start_date ? 1 : 0,
+  )
+  const laneEnds: string[] = []
+  for (const b of blocks) {
+    const s = dayjs(b.start_date)
+    if (!s.isValid()) continue
+    const end = effEndKey(b)
+    let lane = 0
+    while (lane < laneEnds.length) {
+      const prevEnd = laneEnds[lane]
+      // 不重叠判定：上一块结束日 < 本块开始日（按天）
+      if (prevEnd && dayjs(prevEnd).isBefore(s, 'day')) break
+      lane++
+    }
+    laneEnds[lane] = end
+    lanes[b.id] = lane
+  }
+  return lanes
+})
+
+/** 色块条的圆角形态：整体开始/结束/居中/单日 */
+function durBarClass(b: DurationEvent, key: string): string {
+  const s = b.start_date
+  const e = effEndKey(b)
+  const cls: string[] = []
+  if (key === s && key === e) cls.push('is-single')
+  else if (key === s) cls.push('is-start')
+  if (key === e) cls.push('is-end')
+  return cls.join(' ')
+}
+function durBarStyle(b: DurationEvent): Record<string, string> {
+  const c = b.color || DEFAULT_DURATION_COLOR
+  return {
+    background: `color-mix(in srgb, ${c} 30%, transparent)`,
+    borderColor: c,
+    // 泳道纵向偏移：同一天重叠的色块上下错开，互不覆盖
+    '--lane': String(durLanes.value[b.id] ?? 0),
+  }
+}
+
+/** 双击事件：无结束时间块的开始日期 → 进入选择；再次双击 → 弹出确认 */
+function onCellDblClick(payload: unknown) {
+  const key = cellKeyOf(payload)
+  if (!key) return
+  if (durSelect.active) {
+    // 再次双击：以当前预览日期为结束日，进入确认弹窗
+    confirmDurEnd()
+    return
+  }
+  const block = allDurationBlocks().find(
+    (b) => b.end_date == null && b.start_date === key,
+  )
+  if (!block) return
+  durSelect.active = true
+  durSelect.blockId = block.id
+  previewEndKey.value = block.start_date
+}
+
+function updatePreviewEnd(key: string) {
+  const block = allDurationBlocks().find((b) => b.id === durSelect.blockId)
+  if (!block) return
+  // 结束日期只能早于等于，不能早于开始日期
+  if (key >= block.start_date) previewEndKey.value = key
+}
+
+function confirmDurEnd() {
+  const endKey = previewEndKey.value
+  if (!endKey || !durSelect.blockId) return
+  durConfirm.blockId = durSelect.blockId
+  durConfirm.endKey = endKey
+  durConfirm.visible = true
+}
+function cancelDurEnd() {
+  durConfirm.visible = false
+  exitDurSelect()
+}
+async function applyDurEnd() {
+  const { blockId, endKey } = durConfirm
+  durConfirm.visible = false
+  exitDurSelect()
+  if (!blockId || !endKey) return
+  try {
+    await eventStore.update(blockId, { end_date: endKey })
+  } catch (_err) {
+    // 错误文案已在 eventStore.error 中
+  }
+}
+function exitDurSelect() {
+  durSelect.active = false
+  durSelect.blockId = ''
+  previewEndKey.value = null
+}
+
+const durConfirmTitle = computed(() => {
+  if (!durConfirm.blockId) return ''
+  const b = (eventStore.events ?? []).find((e) => e.id === durConfirm.blockId)
+  return b && b.type === 'duration' ? b.title : ''
+})
 
 /* ==============================================================================
  *  CRUD UI：EventForm（新增 / 编辑） + 编辑 / 删除入口
@@ -316,7 +483,7 @@ onMounted(() => {
             @cell-click="onCellClick"
           >
             <template #cell-content="{ cell }">
-              <div class="vc-cell-inner">
+              <div class="vc-cell-inner" @dblclick="onCellDblClick(cell)">
                 <span
                   class="vc-day-num"
                   :class="{
@@ -339,10 +506,44 @@ onMounted(() => {
                     :title="typeLabelByType[t] ?? t"
                   ></span>
                 </div>
+                <div
+                  v-if="showDurationBlocks && durCovers[cell.formattedDate]?.length"
+                  class="vc-dur-layer"
+                >
+                  <span
+                    v-for="b in durCovers[cell.formattedDate]"
+                    :key="b.id"
+                    class="vc-dur-bar"
+                    :class="[
+                      durBarClass(b, cell.formattedDate),
+                      durSelect.active && b.id === durSelect.blockId ? 'is-preview' : '',
+                    ]"
+                    :style="durBarStyle(b)"
+                    :title="b.title"
+                  ></span>
+                </div>
               </div>
             </template>
           </VueCal>
         </div>
+      </div>
+
+      <!-- 显示时间块开关 + 选择结束日期提示 -->
+      <div class="cal-dur-toggle-row">
+        <button
+          type="button"
+          class="cal-dur-toggle"
+          :class="{ on: showDurationBlocks }"
+          role="switch"
+          :aria-checked="showDurationBlocks"
+          @click="toggleDurationBlocks"
+        >
+          <span class="cdt-track"><span class="cdt-knob"></span></span>
+          <span class="cdt-label">显示时间块</span>
+        </button>
+        <span v-if="durSelect.active" class="cdt-hint">
+          正在选择结束日期：单击日期预览，再次双击确认
+        </span>
       </div>
 
       <!-- 选中日期 → 当天事件列表 -->
@@ -443,7 +644,7 @@ onMounted(() => {
           @cell-click="onCellClick"
         >
           <template #cell-content="{ cell }">
-            <div class="vc-cell-inner">
+            <div class="vc-cell-inner" @dblclick="onCellDblClick(cell)">
               <span
                 class="vc-day-num"
                 :class="{
@@ -466,10 +667,44 @@ onMounted(() => {
                   :title="typeLabelByType[t] ?? t"
                 ></span>
               </div>
+              <div
+                v-if="showDurationBlocks && durCovers[cell.formattedDate]?.length"
+                class="vc-dur-layer"
+              >
+                <span
+                  v-for="b in durCovers[cell.formattedDate]"
+                  :key="b.id"
+                  class="vc-dur-bar"
+                  :class="[
+                    durBarClass(b, cell.formattedDate),
+                    durSelect.active && b.id === durSelect.blockId ? 'is-preview' : '',
+                  ]"
+                  :style="durBarStyle(b)"
+                  :title="b.title"
+                ></span>
+              </div>
             </div>
           </template>
         </VueCal>
       </div>
+    </div>
+
+    <!-- 显示时间块开关 + 选择结束日期提示 -->
+    <div class="cal-dur-toggle-row">
+      <button
+        type="button"
+        class="cal-dur-toggle"
+        :class="{ on: showDurationBlocks }"
+        role="switch"
+        :aria-checked="showDurationBlocks"
+        @click="toggleDurationBlocks"
+      >
+        <span class="cdt-track"><span class="cdt-knob"></span></span>
+        <span class="cdt-label">显示时间块</span>
+      </button>
+      <span v-if="durSelect.active" class="cdt-hint">
+        正在选择结束日期：单击日期预览，再次双击确认
+      </span>
     </div>
 
     <!-- 选中日期 → 当天事件列表：与独立页完全相同 -->
@@ -546,6 +781,35 @@ onMounted(() => {
     @cancel="cancelDelete"
     @confirm="confirmDelete"
   />
+
+  <!-- 时间块结束日期确认弹窗：确认后正式写入 end_date -->
+  <Teleport to="body">
+    <Transition name="confirm-fade">
+      <div
+        v-if="durConfirm.visible"
+        class="dur-confirm-mask"
+        role="presentation"
+        @click.self="cancelDurEnd"
+      >
+        <div class="dur-confirm-dialog" role="dialog" aria-modal="true">
+          <div class="dur-confirm-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 6v6"/><path d="M12 16h.01"/></svg>
+          </div>
+          <div class="dur-confirm-copy">
+            <h2 class="dur-confirm-title">
+              将此时间块结束于 {{ dayjs(durConfirm.endKey).format('M 月 D 日') }}？
+            </h2>
+            <p class="dur-confirm-event">{{ durConfirmTitle }}</p>
+            <p class="dur-confirm-hint">确认后，该时间块将覆盖其开始日期至所选日期。</p>
+          </div>
+          <div class="dur-confirm-actions">
+            <BaseButton variant="ghost" size="sm" @click="cancelDurEnd">取消</BaseButton>
+            <BaseButton variant="primary" size="sm" @click="applyDurEnd">确认</BaseButton>
+          </div>
+        </div>
+      </div>
+    </Transition>
+  </Teleport>
 </template>
 
 <style scoped>
@@ -862,6 +1126,112 @@ onMounted(() => {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-accent) 22%, transparent);
 }
 
+/* —— 时间块色块层：贴在格子底部，横跨 1~N 天，多泳道上下错开 —— */
+.vc-dur-layer {
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  bottom: 2px;
+  height: 9px;
+  pointer-events: none;               /* 不干扰日期单选 / 双击；双击由 cell 本身接收 */
+}
+.vc-dur-bar {
+  position: absolute;
+  left: 1px;
+  right: 1px;
+  height: 7px;
+  top: calc(var(--lane, 0) * 10px);
+  border-radius: 3px;
+  border: 1px solid;
+  opacity: 0.9;
+  box-sizing: border-box;
+}
+/* 单日块：整体椭圆胶囊 */
+.vc-dur-bar.is-single {
+  border-radius: 999px;
+}
+/* 区间：起始日左侧圆角、结束日右侧圆角，中间平整 → 连成一根带 */
+.vc-dur-bar.is-start {
+  border-top-left-radius: 4px;
+  border-bottom-left-radius: 4px;
+}
+.vc-dur-bar.is-end {
+  border-top-right-radius: 4px;
+  border-bottom-right-radius: 4px;
+}
+/* 选择模式：预览块加粗、加高亮描边 */
+.vc-dur-bar.is-preview {
+  height: 9px;
+  top: max(calc(calc(var(--lane, 0) * 10px) - 1px), 0px);
+  opacity: 1;
+  outline: 1px solid var(--color-accent);
+  z-index: 2;
+}
+
+/* —— 「显示时间块」开关 + 选择提示 —— */
+.cal-dur-toggle-row {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-height: 20px;
+}
+.cal-dur-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  user-select: none;
+}
+.cdt-track {
+  position: relative;
+  width: 26px;
+  height: 15px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-primary) 14%, var(--glass-border));
+  border: 1px solid var(--glass-border);
+  transition: background var(--duration-fast) var(--ease-out);
+  flex: 0 0 auto;
+}
+.cdt-knob {
+  position: absolute;
+  top: 50%;
+  left: 2px;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: var(--color-text-tertiary);
+  transform: translateY(-50%);
+  transition:
+    left var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out);
+}
+.cal-dur-toggle.on .cdt-track {
+  background: var(--color-accent);
+  border-color: color-mix(in srgb, var(--color-accent) 60%, transparent);
+}
+.cal-dur-toggle.on .cdt-knob {
+  left: 12px;
+  background: var(--color-text-on-gradient);
+}
+.cdt-label {
+  font-size: 11px;
+  color: var(--color-text-secondary);
+  font-weight: var(--font-medium);
+}
+.cdt-hint {
+  font-size: 10px;
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-weight: var(--font-medium);
+}
+
 /* —— 选中日期当天事件列表（整体收紧，和小日历视觉对齐）—— */
 .day-events {
   margin-top: 8px;                    /* 原 12px → 8px */
@@ -1111,5 +1481,87 @@ onMounted(() => {
   background: color-mix(in srgb, var(--color-danger) 12%, transparent);
   color: var(--color-danger-light);
   border-color: color-mix(in srgb, var(--color-danger) 28%, transparent);
+}
+
+/* ==============================================================================
+ *  时间块结束日期确认弹窗（Teleport 到 body，玻璃风格与 BaseConfirmDialog 同源）
+ * ============================================================================== */
+.dur-confirm-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: color-mix(in srgb, var(--color-primary) 18%, rgba(255, 255, 255, 0.30));
+  backdrop-filter: blur(5px);
+  -webkit-backdrop-filter: blur(5px);
+}
+.dur-confirm-dialog {
+  width: min(100%, 320px);
+  padding: 16px 18px;
+  background: var(--glass-bg-active);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-border);
+  border-radius: var(--glass-radius);
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
+  display: grid;
+  grid-template-columns: 30px 1fr;
+  gap: 4px 10px;
+  align-items: start;
+}
+.dur-confirm-mark {
+  width: 26px;
+  height: 26px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 50%;
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+  border: 1px solid color-mix(in srgb, var(--color-primary) 26%, transparent);
+}
+.dur-confirm-copy {
+  min-width: 0;
+}
+.dur-confirm-title {
+  margin: 0;
+  color: var(--color-text-primary);
+  font-size: 14px;
+  font-weight: var(--font-semibold);
+  line-height: 1.35;
+}
+.dur-confirm-event {
+  margin: 7px 0 0;
+  overflow: hidden;
+  color: var(--color-text-primary);
+  font-size: 13px;
+  font-weight: var(--font-medium);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.dur-confirm-hint {
+  margin: 4px 0 0;
+  color: var(--color-text-tertiary);
+  font-size: 11px;
+}
+.dur-confirm-actions {
+  grid-column: 2;
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+/* 复用 BaseConfirmDialog 的淡入淡出过渡名，视觉一致 */
+.confirm-fade-enter-active,
+.confirm-fade-leave-active {
+  transition: opacity var(--duration-fast) var(--ease-out);
+}
+.confirm-fade-enter-from,
+.confirm-fade-leave-to {
+  opacity: 0;
 }
 </style>

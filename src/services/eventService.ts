@@ -62,8 +62,9 @@ export const eventService = {
           ...base,
           type: 'duration',
           status: input.status ?? 'pending',
-          start_time: input.start_time,
-          end_time: input.end_time,
+          start_date: input.start_date,
+          end_date: input.end_date ?? null,
+          color: input.color ?? DEFAULT_DURATION_COLOR,
         }
         break
       case 'idea':
@@ -117,11 +118,17 @@ function validateCreateInput(input: CreateEventInput): void {
   }
 
   if (input.type === 'duration') {
-    if (!input.start_time || !input.end_time) {
-      throw new Error('duration event requires start_time and end_time')
+    if (!input.start_date) {
+      throw new Error('duration event requires start_date')
     }
-    if (new Date(input.end_time) <= new Date(input.start_time)) {
-      throw new Error('end_time must be after start_time')
+    if (input.end_date && input.end_date < input.start_date) {
+      throw new Error('end_date must not be before start_date')
     }
   }
 }
+
+/**
+ * 时间块默认色块颜色（柔低饱和鼠尾草绿，对应 tokens 的 --color-event-duration）。
+ * 仅用于日历可视化，不进入业务逻辑。
+ */
+export const DEFAULT_DURATION_COLOR = '#8aa388'

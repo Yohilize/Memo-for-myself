@@ -13,7 +13,7 @@ export interface DateIndicator {
  * 规则：
  *  - CalendarEvent → event_date
  *  - DeadlineEvent → due_date（取日期部分）
- *  - DurationEvent → 从 start_time 到 end_time 跨的每一天，都算有事件
+ *  - DurationEvent → 从 start_date 到 end_date 跨的每一天都算有事件；无 end_date 只算开始日期
  *  - IdeaEvent     → 不进入日历（数据映射层过滤，不产生任何日期指示器/事件标记/事件点）
  */
 export function mapEventsToDateIndicators(
@@ -42,7 +42,7 @@ export function mapEventsToDateIndicators(
  * 规则（严格对应需求）：
  *  - CalendarEvent  → selectedDate === event_date（YYYY-MM-DD 精确相等）
  *  - DeadlineEvent  → selectedDate === due_date 的日期部分
- *  - DurationEvent  → selectedDate 落在 [start_time, end_time] 区间（按天比较，两端都含）
+ *  - DurationEvent  → selectedDate 落在 [start_date, end_date] 区间（按天比较，两端都含）；无 end_date 仅命中开始日期
  *  - IdeaEvent      → 当前没有明确日期字段 → 不显示（需求第 7 条）
  *
  * 返回顺序不做强制排序，UI 层可自行按事件类型与时间排序。
@@ -54,7 +54,6 @@ export function filterEventsForDay(
   const day = dayjs(dayKey)
   if (!day.isValid()) return []
   const start = day.startOf('day')
-  const end = day.endOf('day')
 
   return events.filter((e): boolean => {
     switch (e.type) {
@@ -65,11 +64,14 @@ export function filterEventsForDay(
         return d.isValid() && d.isSame(start, 'day')
       }
       case 'duration': {
-        const s = dayjs(e.start_time)
-        const t = dayjs(e.end_time)
-        if (!s.isValid() || !t.isValid()) return false
-        // DurationEvent：start_time ~ end_time 跨越的每一天都命中
-        return !(end.isBefore(s, 'day') || start.isAfter(t, 'day'))
+        const s = dayjs(e.start_date)
+        if (!s.isValid()) return false
+        // 无结束日期：仅命中开始日期一方
+        if (!e.end_date) return day.isSame(s, 'day')
+        const t = dayjs(e.end_date)
+        if (!t.isValid()) return false
+        // DurationEvent：start_date ~ end_date 跨越的每一天都命中
+        return !(day.isBefore(s, 'day') || day.isAfter(t, 'day'))
       }
       case 'idea':
         // IdeaEvent 没有明确日期字段 → 不显示在当天列表
@@ -85,7 +87,7 @@ export function filterEventsForDay(
  */
 export function dayEventTimeLabel(
   e: TimeEvent,
-  dayKey: string,
+  _dayKey: string,
 ): string {
   switch (e.type) {
     case 'calendar':
@@ -97,16 +99,13 @@ export function dayEventTimeLabel(
         : '截止'
     }
     case 'duration': {
-      const s = dayjs(e.start_time)
-      const t = dayjs(e.end_time)
-      const day = dayjs(dayKey)
-      if (!s.isValid() || !t.isValid()) return '时段'
-      const sameStart = s.isSame(day, 'day')
-      const sameEnd = t.isSame(day, 'day')
-      if (sameStart && sameEnd) return `${s.format('HH:mm')}–${t.format('HH:mm')}`
-      if (sameStart) return `${s.format('HH:mm')}–`
-      if (sameEnd) return `–${t.format('HH:mm')}`
-      return '全天' // 跨天但当天在中间
+      const s = dayjs(e.start_date)
+      if (!s.isValid()) return '时段'
+      // 无结束日期：仅开始，未定结束 → 「进行中」
+      if (!e.end_date) return '进行中'
+      const t = dayjs(e.end_date)
+      if (!t.isValid()) return '时段'
+      return `${s.format('M月D日')}–${t.format('M月D日')}`
     }
     case 'idea':
       return ''
@@ -117,7 +116,7 @@ export function dayEventTimeLabel(
  * 与 dayEventTimeLabel 对应的内部比较键：保证时间在前的排在前面。
  * '全天'、'截止'、'时段' 等非具体时间的文本映射到 24:00+ 区间，确保排在末尾。
  */
-export function dayEventSortKey(e: TimeEvent, dayKey: string): string {
+export function dayEventSortKey(e: TimeEvent, _dayKey: string): string {
   switch (e.type) {
     case 'calendar':
       return e.all_day ? '99:99' : e.event_time || '99:99'
@@ -128,10 +127,9 @@ export function dayEventSortKey(e: TimeEvent, dayKey: string): string {
         : '99:99'
     }
     case 'duration': {
-      const s = dayjs(e.start_time)
-      const day = dayjs(dayKey)
-      if (!s.isValid()) return '99:99'
-      return s.isSame(day, 'day') ? s.format('HH:mm') : '00:00'
+      // 时间块为整块活动，排序上始终置顶（无具体时刻）
+      const s = dayjs(e.start_date)
+      return s.isValid() ? '00:00' : '99:99'
     }
     case 'idea':
       return '99:99'
@@ -152,17 +150,20 @@ function eventDates(e: TimeEvent): string[] {
       return d.isValid() ? [d.format('YYYY-MM-DD')] : []
     }
     case 'duration': {
-      const start = dayjs(e.start_time)
-      const end = dayjs(e.end_time)
-      if (!start.isValid() || !end.isValid()) return []
-      const result: string[] = []
+      const start = dayjs(e.start_date)
+      if (!start.isValid()) return []
+      const result: string[] = [start.format('YYYY-MM-DD')]
+      // 无结束日期：开放区块只在开始日期打点，不延伸到未来
+      if (!e.end_date) return result
+      const end = dayjs(e.end_date)
+      if (!end.isValid()) return result
       let cur = start.startOf('day')
       const stop = end.startOf('day')
       // 最多跨 366 天，避免异常数据死循环
       let guard = 0
-      while (cur.isBefore(stop) || cur.isSame(stop, 'day')) {
-        result.push(cur.format('YYYY-MM-DD'))
+      while (cur.isBefore(stop)) {
         cur = cur.add(1, 'day')
+        result.push(cur.format('YYYY-MM-DD'))
         if (++guard > 366) break
       }
       return result

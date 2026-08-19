@@ -57,7 +57,7 @@ function timelineSortKey(e: TimeEvent): string {
     case 'deadline':
       return e.due_date
     case 'duration':
-      return e.start_time
+      return `${e.start_date}T00:00:00`
     case 'idea':
       return ''
   }
@@ -71,7 +71,7 @@ function timelineDayKey(e: TimeEvent): string {
     case 'deadline':
       return dayjs(e.due_date).format('YYYY-MM-DD')
     case 'duration':
-      return dayjs(e.start_time).format('YYYY-MM-DD')
+      return dayjs(e.start_date).format('YYYY-MM-DD')
     case 'idea':
       return ''
   }
@@ -89,10 +89,13 @@ function timeLabel(e: TimeEvent): string {
         : '截止'
     }
     case 'duration': {
-      const s = dayjs(e.start_time)
-      const t = dayjs(e.end_time)
-      if (!s.isValid() || !t.isValid()) return '时段'
-      return `${s.format('HH:mm')}–${t.format('HH:mm')}`
+      const s = dayjs(e.start_date)
+      if (!s.isValid()) return '时间块'
+      // 无结束日期：已开始、未定结束 → 「进行中」
+      if (!e.end_date) return '进行中'
+      const t = dayjs(e.end_date)
+      if (!t.isValid()) return '时间块'
+      return `${s.format('M月D日')}–${t.format('M月D日')}`
     }
     case 'idea':
       return ''

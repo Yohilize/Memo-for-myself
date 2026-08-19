@@ -49,8 +49,8 @@ async function createEvent() {
         await store.create({
           type: 'duration',
           title: title.value,
-          start_time: iso,
-          end_time: new Date(now.getTime() + 3600000).toISOString(),
+          start_date: dateStr,
+          end_date: null,
         })
         break
       case 'idea':

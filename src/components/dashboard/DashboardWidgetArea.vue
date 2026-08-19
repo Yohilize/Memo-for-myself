@@ -46,7 +46,7 @@ function pinnedDateText(event: TimeEvent): string {
     case 'deadline':
       return dayjs(event.due_date).format('M月D日')
     case 'duration':
-      return dayjs(event.start_time).format('M月D日')
+      return dayjs(event.start_date).format('M月D日')
     case 'idea':
       return dayjs(event.created_at).format('M月D日')
   }
@@ -63,11 +63,13 @@ function pinnedTimeText(event: TimeEvent): string {
         : '截止'
     }
     case 'duration': {
-      const start = dayjs(event.start_time)
-      const end = dayjs(event.end_time)
-      return start.isValid() && end.isValid()
-        ? `${start.format('HH:mm')}–${end.format('HH:mm')}`
-        : '时段'
+      const start = dayjs(event.start_date)
+      if (!start.isValid()) return '时间块'
+      // 无结束日期：已开始、未定结束 → 「进行中」
+      if (!event.end_date) return '进行中'
+      const end = dayjs(event.end_date)
+      if (!end.isValid()) return '时间块'
+      return `${start.format('M月D日')}–${end.format('M月D日')}`
     }
     case 'idea':
       return '灵感记录'

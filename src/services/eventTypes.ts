@@ -40,8 +40,11 @@ export interface CreateDurationInput {
   notes?: string
   tags?: string[]
   status?: EventStatus
-  start_time: string
-  end_time: string
+  start_date: string
+  /** 结束日期；不传或传 null 表示「已开始、未知结束」的开放区块 */
+  end_date?: string | null
+  /** 日历色块颜色（hex）；不传则用默认色 */
+  color?: string
 }
 
 export interface CreateIdeaInput {

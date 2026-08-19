@@ -19,6 +19,21 @@ import TimePicker from './TimePicker.vue'
 import { useDashboardPinnedEvent } from '@/composables/useDashboardPinnedEvent'
 import type { TimeEvent, EventType, Priority, EventStatus } from '@/types/event'
 import type { CreateEventInput, UpdateEventInput } from '@/services/eventTypes'
+import { DEFAULT_DURATION_COLOR } from '@/services/eventService'
+
+/**
+ * 时间块色块可选色板：柔、低饱和、与 MYMEMO 暖调玻璃风格一致的几组颜色。
+ * 仅用于日历中时间块的可视化，不进入业务逻辑。
+ */
+const DURATION_COLORS = [
+  DEFAULT_DURATION_COLOR,
+  '#c98f5f',
+  '#a984b3',
+  '#7fa6c2',
+  '#c27474',
+  '#9bb87e',
+  '#d3a86b',
+]
 
 interface Props {
   visible: boolean
@@ -66,9 +81,9 @@ const form = reactive({
   due_time: '',
   priority: 'medium' as Priority,
   // duration
-  duration_date: '',
-  start_hm: '09:00',
-  end_hm: '10:00',
+  start_date: '',
+  end_date: '',
+  dur_color: DEFAULT_DURATION_COLOR,
   // idea
   content: '',
   archived: false,
@@ -81,9 +96,8 @@ const errorMsg = computed(() => {
   if (form.type === 'calendar' && !form.event_date) return '请选择日期'
   if (form.type === 'deadline' && !form.due_date) return '请选择截止日期'
   if (form.type === 'duration') {
-    if (!form.duration_date) return '请选择日期'
-    if (!form.start_hm || !form.end_hm) return '请填写起止时间'
-    if (form.start_hm >= form.end_hm) return '结束时间必须晚于开始时间'
+    if (!form.start_date) return '请选择开始日期'
+    if (form.end_date && form.end_date < form.start_date) return '结束日期不能早于开始日期'
   }
   return ''
 })
@@ -120,14 +134,11 @@ watch(
           form.priority = e.priority
           break
         }
-        case 'duration': {
-          const s = dayjs(e.start_time)
-          const t = dayjs(e.end_time)
-          form.duration_date = s.isValid() ? s.format('YYYY-MM-DD') : dayjs().format('YYYY-MM-DD')
-          form.start_hm = s.isValid() ? s.format('HH:mm') : '09:00'
-          form.end_hm = t.isValid() ? t.format('HH:mm') : '10:00'
+        case 'duration':
+          form.start_date = e.start_date
+          form.end_date = e.end_date ?? ''
+          form.dur_color = e.color ?? DEFAULT_DURATION_COLOR
           break
-        }
         case 'idea':
           form.content = e.content ?? ''
           form.archived = e.archived
@@ -148,9 +159,10 @@ watch(
       form.due_date = d
       form.due_time = ''
       form.priority = 'medium'
-      form.duration_date = d
-      form.start_hm = '09:00'
-      form.end_hm = '10:00'
+      // duration：开始日期默认今天；结束日期默认留空（未知结束的开放区块）
+      form.start_date = dayjs().format('YYYY-MM-DD')
+      form.end_date = ''
+      form.dur_color = DEFAULT_DURATION_COLOR
       form.content = ''
       form.archived = false
     }
@@ -187,13 +199,11 @@ function handleSubmit() {
         patch.priority = form.priority
         break
       }
-      case 'duration': {
-        const s = new Date(`${form.duration_date}T${form.start_hm}:00`).toISOString()
-        const t = new Date(`${form.duration_date}T${form.end_hm}:00`).toISOString()
-        patch.start_time = s
-        patch.end_time = t
-        break
-      }
+      case 'duration':
+          patch.start_date = form.start_date
+          patch.end_date = form.end_date || null
+          patch.color = form.dur_color
+          break
       case 'idea':
         patch.content = form.content
         patch.archived = form.archived
@@ -229,17 +239,15 @@ function handleSubmit() {
         }
         break
       }
-      case 'duration': {
-        const s = new Date(`${form.duration_date}T${form.start_hm}:00`).toISOString()
-        const t = new Date(`${form.duration_date}T${form.end_hm}:00`).toISOString()
-        input = {
-          ...base,
-          type: 'duration',
-          start_time: s,
-          end_time: t,
-        }
-        break
-      }
+      case 'duration':
+          input = {
+            ...base,
+            type: 'duration',
+            start_date: form.start_date,
+            end_date: form.end_date || null,
+            color: form.dur_color,
+          }
+          break
       case 'idea':
         // idea 不参与任务状态：不写 status，让 service 默认 pending，后续仅靠归档管理
         input = {
@@ -412,22 +420,39 @@ const typeColors: Record<EventType, string> = {
             </div>
           </template>
 
-          <!-- Duration -->
+          <!-- Duration / 时间块 -->
           <template v-if="form.type === 'duration'">
             <div class="ef-row">
-              <span class="ef-label">日期</span>
-              <DatePicker v-model="form.duration_date" />
+              <span class="ef-label">开始日期</span>
+              <DatePicker v-model="form.start_date" />
             </div>
-            <div class="ef-row ef-inline">
-              <div class="ef-time-field">
-                <span class="ef-label">开始</span>
-                <TimePicker v-model="form.start_hm" />
-              </div>
-              <div class="ef-time-field">
-                <span class="ef-label">结束</span>
-                <TimePicker v-model="form.end_hm" />
+            <div class="ef-row">
+              <span class="ef-label">结束日期</span>
+              <DatePicker
+                v-model="form.end_date"
+                placeholder="暂不设置（进行中）"
+                allow-clear
+              />
+            </div>
+            <div class="ef-row">
+              <span class="ef-label">颜色</span>
+              <div class="ef-color-row">
+                <button
+                  v-for="c in DURATION_COLORS"
+                  :key="c"
+                  type="button"
+                  class="ef-color-swatch"
+                  :class="{ active: form.dur_color === c }"
+                  :style="{ background: c }"
+                  :aria-label="`颜色 ${c}`"
+                  :title="c"
+                  @click="form.dur_color = c"
+                ></button>
               </div>
             </div>
+            <p class="ef-field-hint">
+              不设结束日期表示该时间块已开始、结束日期待定；可在日历中双击其开始日期来补设结束日期。
+            </p>
           </template>
 
           <!-- Idea -->
@@ -743,6 +768,36 @@ const typeColors: Record<EventType, string> = {
   font-size: 10px;
   line-height: 1.4;
   color: var(--color-text-tertiary);
+}
+
+/* 时间块色块：圆形小 swatch，激活项描边 + 轻微上浮 */
+.ef-color-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  align-items: center;
+}
+.ef-color-swatch {
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: none;
+  border-radius: 50%;
+  cursor: pointer;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, #000 8%, transparent);
+  transition:
+    transform var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+.ef-color-swatch:hover {
+  transform: scale(1.12);
+}
+.ef-color-swatch.active {
+  transform: scale(1.12);
+  box-shadow:
+    inset 0 0 0 1px transparent,
+    0 0 0 2px var(--color-bg-base),
+    0 0 0 3.5px var(--color-primary);
 }
 
 /* 优先级 / 状态 Tabs：柔化 pill */

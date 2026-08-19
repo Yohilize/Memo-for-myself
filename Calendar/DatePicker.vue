@@ -72,6 +72,12 @@
 
           <div class="dp-foot">
             <button type="button" class="dp-today" @click="pickToday">今天</button>
+            <button
+              v-if="allowClear && isSet"
+              type="button"
+              class="dp-clear"
+              @click="clear"
+            >清除</button>
           </div>
         </div>
       </Transition>
@@ -87,9 +93,11 @@ const props = withDefaults(
   defineProps<{
     modelValue: string // 'YYYY-MM-DD'
     placeholder?: string // 未设置日期时触发器的占位文本
+    allowClear?: boolean // 是否允许清除为未设置（可选日期场景，如 Duration 结束日期）
   }>(),
   {
     placeholder: '选择日期',
+    allowClear: false,
   },
 )
 const emit = defineEmits<{
@@ -165,6 +173,9 @@ function pickToday(): void {
   emit('update:modelValue', todayIso)
   viewDate.value = dayjs()
   close()
+}
+function clear(): void {
+  emit('update:modelValue', '')
 }
 function shiftMonth(step: number): void {
   viewDate.value = viewDate.value.add(step, 'month').startOf('month')
@@ -352,20 +363,29 @@ onBeforeUnmount(() => document.removeEventListener('mousedown', onDocDown))
 .dp-foot {
   display: flex;
   justify-content: center;
+  gap: 14px;
   margin-top: 8px;
   padding-top: 8px;
   border-top: 1px solid var(--glass-border);
 }
-.dp-today {
+.dp-today,
+.dp-clear {
   border: none;
   background: transparent;
-  color: var(--color-primary);
   font-size: 12px;
   font-weight: var(--font-semibold);
   cursor: pointer;
   transition: opacity var(--duration-fast) var(--ease-out);
 }
-.dp-today:hover {
+.dp-today {
+  color: var(--color-primary);
+}
+.dp-clear {
+  color: var(--color-text-tertiary);
+  font-weight: var(--font-medium);
+}
+.dp-today:hover,
+.dp-clear:hover {
   opacity: 0.75;
 }
 
