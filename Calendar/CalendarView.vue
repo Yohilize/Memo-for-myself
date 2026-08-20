@@ -174,12 +174,42 @@ function cellKeyOf(payload: unknown): string | null {
   return null
 }
 
+/** 手动双击检测：记录最近一次格点击的时间与键；两次同一格的快速点击视为双击。
+ *  Vue Cal 选中日期会重建格子 DOM，原生 @dblclick 因节点被替换而经常无法触发，
+ *  所以在 @cell-click 上用「时间内判定」实现同样的双击语义，状态存于组件内（跨重渲染存活）。 */
+let durLastClick = { key: '', time: 0 }
+
+/** 格点击统一入口：单点=选中/预览；同一格 600ms 内再次点击=双击（进入选择 / 确认结束日期） */
 function onCellClick(payload: unknown) {
   const key = cellKeyOf(payload)
   if (!key) return
+  const now = performance.now()
+  const isDouble = key === durLastClick.key && now - durLastClick.time < 600
+  durLastClick = { key, time: now }
+
   setSelectedDate(key)
-  // 结束日期选择模式：单击命中的日期即作为预览终点
-  if (durSelect.active) updatePreviewEnd(key)
+
+  if (durSelect.active) {
+    // 选择结束日期模式：双击 → 用当前预览日期弹出确认；单击 → 更新预览终点
+    if (isDouble) {
+      confirmDurEnd()
+      return
+    }
+    updatePreviewEnd(key)
+    return
+  }
+
+  // 普通模式双击：若命中的是「无结束日期」时间块的开始日期 → 进入选择模式
+  if (isDouble) {
+    const block = allDurationBlocks().find(
+      (b) => b.end_date == null && b.start_date === key,
+    )
+    if (block) {
+      durSelect.active = true
+      durSelect.blockId = block.id
+      previewEndKey.value = block.start_date
+    }
+  }
 }
 
 /** dot 颜色：全部走 tokens.css 语义变量 */
@@ -208,8 +238,32 @@ function orderedTypes(dKey: string): string[] {
  * 日历中「显示时间块」开关。
  * 开启：有明确结束日期的时间块以对应颜色在对应日期上连成色块；无结束日期的只在开始日期显示一格。
  * 关闭：退回传统小圆点 indicator。
+ * 默认关闭，且开关状态持久化到 localStorage，刷新/下次进入保持一致。
  */
-const showDurationBlocks = ref(true)
+const DUR_TOGGLE_KEY = 'mymemo.cal.show-duration-blocks.v1'
+
+function loadShowDurationBlocks(): boolean {
+  if (typeof window === 'undefined') return false
+  try {
+    return window.localStorage.getItem(DUR_TOGGLE_KEY) === '1'
+  } catch (_error) {
+    return false
+  }
+}
+function persistShowDurationBlocks(value: boolean): void {
+  if (typeof window === 'undefined') return
+  try {
+    if (value) {
+      window.localStorage.setItem(DUR_TOGGLE_KEY, '1')
+    } else {
+      window.localStorage.removeItem(DUR_TOGGLE_KEY)
+    }
+  } catch (_error) {
+    // Storage can be unavailable in private or restricted browser contexts.
+  }
+}
+
+const showDurationBlocks = ref(loadShowDurationBlocks())
 
 /** 无结束日期的时间块 → 双击其开始日期，进入「选择结束日期」模式 */
 const durSelect = reactive({ active: false, blockId: '' })
@@ -221,6 +275,7 @@ const durConfirm = reactive({ visible: false, blockId: '', endKey: '' })
 function toggleDurationBlocks() {
   showDurationBlocks.value = !showDurationBlocks.value
   if (!showDurationBlocks.value) exitDurSelect()
+  persistShowDurationBlocks(showDurationBlocks.value)
 }
 
 function allDurationBlocks(): DurationEvent[] {
@@ -300,24 +355,6 @@ function durBarStyle(b: DurationEvent): Record<string, string> {
     // 泳道纵向偏移：同一天重叠的色块上下错开，互不覆盖
     '--lane': String(durLanes.value[b.id] ?? 0),
   }
-}
-
-/** 双击事件：无结束时间块的开始日期 → 进入选择；再次双击 → 弹出确认 */
-function onCellDblClick(payload: unknown) {
-  const key = cellKeyOf(payload)
-  if (!key) return
-  if (durSelect.active) {
-    // 再次双击：以当前预览日期为结束日，进入确认弹窗
-    confirmDurEnd()
-    return
-  }
-  const block = allDurationBlocks().find(
-    (b) => b.end_date == null && b.start_date === key,
-  )
-  if (!block) return
-  durSelect.active = true
-  durSelect.blockId = block.id
-  previewEndKey.value = block.start_date
 }
 
 function updatePreviewEnd(key: string) {
@@ -465,6 +502,17 @@ onMounted(() => {
               <line x1="5" y1="12" x2="19" y2="12"/>
             </svg>
           </button>
+          <button
+            type="button"
+            class="cal-dur-toggle-btn"
+            :class="{ on: showDurationBlocks }"
+            :aria-pressed="showDurationBlocks"
+            :title="showDurationBlocks ? '隐藏时间块' : '显示时间块'"
+            @click="toggleDurationBlocks"
+          >
+            <span class="cdtb-dot" aria-hidden="true"></span>
+            <span class="cdtb-text">时间块</span>
+          </button>
         </div>
       </div>
 
@@ -483,7 +531,7 @@ onMounted(() => {
             @cell-click="onCellClick"
           >
             <template #cell-content="{ cell }">
-              <div class="vc-cell-inner" @dblclick="onCellDblClick(cell)">
+              <div class="vc-cell-inner">
                 <span
                   class="vc-day-num"
                   :class="{
@@ -528,20 +576,9 @@ onMounted(() => {
         </div>
       </div>
 
-      <!-- 显示时间块开关 + 选择结束日期提示 -->
-      <div class="cal-dur-toggle-row">
-        <button
-          type="button"
-          class="cal-dur-toggle"
-          :class="{ on: showDurationBlocks }"
-          role="switch"
-          :aria-checked="showDurationBlocks"
-          @click="toggleDurationBlocks"
-        >
-          <span class="cdt-track"><span class="cdt-knob"></span></span>
-          <span class="cdt-label">显示时间块</span>
-        </button>
-        <span v-if="durSelect.active" class="cdt-hint">
+      <!-- 选择结束日期提示（开关已移到右上角 header） -->
+      <div v-if="durSelect.active" class="cal-dur-toggle-row">
+        <span class="cdt-hint">
           正在选择结束日期：单击日期预览，再次双击确认
         </span>
       </div>
@@ -627,6 +664,17 @@ onMounted(() => {
             <line x1="5" y1="12" x2="19" y2="12"/>
           </svg>
         </button>
+        <button
+          type="button"
+          class="cal-dur-toggle-btn"
+          :class="{ on: showDurationBlocks }"
+          :aria-pressed="showDurationBlocks"
+          :title="showDurationBlocks ? '隐藏时间块' : '显示时间块'"
+          @click="toggleDurationBlocks"
+        >
+          <span class="cdtb-dot" aria-hidden="true"></span>
+          <span class="cdtb-text">时间块</span>
+        </button>
       </div>
     </div>
 
@@ -644,7 +692,7 @@ onMounted(() => {
           @cell-click="onCellClick"
         >
           <template #cell-content="{ cell }">
-            <div class="vc-cell-inner" @dblclick="onCellDblClick(cell)">
+            <div class="vc-cell-inner">
               <span
                 class="vc-day-num"
                 :class="{
@@ -689,20 +737,9 @@ onMounted(() => {
       </div>
     </div>
 
-    <!-- 显示时间块开关 + 选择结束日期提示 -->
-    <div class="cal-dur-toggle-row">
-      <button
-        type="button"
-        class="cal-dur-toggle"
-        :class="{ on: showDurationBlocks }"
-        role="switch"
-        :aria-checked="showDurationBlocks"
-        @click="toggleDurationBlocks"
-      >
-        <span class="cdt-track"><span class="cdt-knob"></span></span>
-        <span class="cdt-label">显示时间块</span>
-      </button>
-      <span v-if="durSelect.active" class="cdt-hint">
+    <!-- 选择结束日期提示（开关已移到右上角 header） -->
+    <div v-if="durSelect.active" class="cal-dur-toggle-row">
+      <span class="cdt-hint">
         正在选择结束日期：单击日期预览，再次双击确认
       </span>
     </div>
@@ -908,6 +945,63 @@ onMounted(() => {
   color: var(--color-primary);
   border: 1px solid color-mix(in srgb, var(--color-primary) 20%, transparent);
   border-radius: 999px;
+}
+/*
+ * 「显示时间块」开关（右上角 header）：
+ * 玻璃小胶囊，与 today / + 按钮同质感。开 = accent 实心，关 = 玻璃描边。
+ */
+.cal-dur-toggle-btn {
+  margin-left: 4px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: var(--glass-bg);
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-shadow), var(--glass-highlight);
+  color: var(--color-text-secondary);
+  font-size: 10px;
+  font-weight: var(--font-medium);
+  cursor: pointer;
+  user-select: none;
+  flex-shrink: 0;
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    border-color var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out),
+    color var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+.cal-dur-toggle-btn:hover {
+  background: var(--glass-bg-hover);
+  border-color: var(--glass-border-hover);
+  box-shadow: var(--glass-shadow-hover), var(--glass-highlight);
+  color: var(--color-primary);
+  transform: translateY(-1px);
+}
+.cal-dur-toggle-btn:active {
+  transform: translateY(0) scale(0.97);
+}
+.cal-dur-toggle-btn.on {
+  color: var(--color-text-on-gradient);
+  background: var(--color-accent);
+  border-color: color-mix(in srgb, var(--color-accent) 60%, transparent);
+  box-shadow: 0 2px 6px color-mix(in srgb, var(--color-accent) 25%, transparent);
+}
+.cdtb-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 2px;
+  background: var(--color-text-tertiary);
+  flex: 0 0 auto;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+.cal-dur-toggle-btn.on .cdtb-dot {
+  background: var(--color-text-on-gradient);
 }
 .cal-title {
   min-width: 78px;                    /* 原 90px → 78px，字号缩了就不用那么宽 */

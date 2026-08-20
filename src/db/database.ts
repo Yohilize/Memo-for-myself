@@ -34,6 +34,23 @@ export interface BackgroundSettings {
 }
 
 /**
+ * 图片组件（Dashboard 上的「图片」小组件）。
+ * 每条记录存储一张裁剪后的图片（base64 DataURL），主键 id 与 Dashboard Grid 中的
+ * 布局 key 对应（layout 中 key = 图片记录 id），删除组件时据此清理数据。
+ *
+ * 与背景壁纸一致：全部使用 base64 DataURL 持久化，不使用 Object URL（跨刷新存活）。
+ */
+export interface ImageWidgetRecord {
+  id: string
+  /** 裁剪后的 base64 DataURL 字符串 */
+  dataUrl: string
+  /** 创建时间戳（ISO 字符串） */
+  created_at: string
+  /** 更新时间戳（ISO 字符串） */
+  updated_at: string
+}
+
+/**
  * Dexie 数据库定义。
  * 仅在 db/ 层内部使用，不对外暴露。
  * 上层通过 Repository 访问数据，不直接 import db。
@@ -41,6 +58,7 @@ export interface BackgroundSettings {
 class MymemoDatabase extends Dexie {
   events!: Table<TimeEvent, string>
   backgroundSettings!: Table<BackgroundSettings, 'default'>
+  imageWidgets!: Table<ImageWidgetRecord, string>
 
   constructor() {
     super('mymemo')
@@ -55,6 +73,13 @@ class MymemoDatabase extends Dexie {
       events: 'id, type, status, created_at, updated_at',
       // 单主键行：始终只有 id='default' 一条
       backgroundSettings: 'id',
+    })
+
+    this.version(3).stores({
+      events: 'id, type, status, created_at, updated_at',
+      backgroundSettings: 'id',
+      // 图片组件表：主键 id；created_at 用于按创建排序
+      imageWidgets: 'id, created_at',
     })
   }
 }

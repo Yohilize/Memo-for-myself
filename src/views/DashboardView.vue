@@ -103,7 +103,10 @@ const statChips = computed(() => [
   },
   {
     tag: '灵感',
-    value: eventStore.events.filter((e) => e.type === 'idea').length,
+    // 仅统计未归档灵感：已归档（archived === true）不计入数量
+    value: eventStore.events.filter(
+      (e) => e.type === 'idea' && !(e.archived ?? false),
+    ).length,
     accent: 'var(--color-accent)',
   },
 ])

@@ -1,10 +1,14 @@
 <script setup lang="ts">
 import dayjs from 'dayjs'
-import { ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import BaseBadge from '@/components/base/BaseBadge.vue'
 import CalendarView from '@calendar/CalendarView.vue'
+import ComponentPickerModal from './ComponentPickerModal.vue'
+import ConfirmDialog from './ConfirmDialog.vue'
+import ImageCropModal from './ImageCropModal.vue'
 import { useDashboardPinnedEvent } from '@/composables/useDashboardPinnedEvent'
+import { useImageWidgetStore } from '@/stores'
 import {
   dayEventTimeLabel,
 } from '@/services/eventCalendarMapper'
@@ -28,9 +32,92 @@ const emit = defineEmits<{
 }>()
 
 const widgetAreaRef = ref<HTMLElement | null>(null)
-const canAddWidget = false
 const pinnedPickerVisible = ref(false)
 const { pinnedEvent, pinEvent, unpinEvent } = useDashboardPinnedEvent()
+
+// —— 图片小组件：数据（IndexedDB）+ 添加/删除 交互 —— //
+const imageStore = useImageWidgetStore()
+const fileInputRef = ref<HTMLInputElement | null>(null)
+const pickerVisible = ref(false)
+const cropModalVisible = ref(false)
+const cropSource = ref('')
+const cropRatio = ref(1)
+
+/** Dashboard 中实际渲染的图片组件 =「已有记录」且「在布局中」的那些 */
+const layoutImageWidgets = computed(() =>
+  imageStore.records.filter((r) => layout.value[r.id]),
+)
+
+onMounted(() => {
+  void imageStore.loadAll()
+})
+
+/** 「+」→ 打开组件选择 GUI */
+function openAddPicker(): void {
+  pickerVisible.value = true
+}
+
+/** 组件选择 GUI 中选中某个组件后分发创建流程 */
+function onPickerSelect(type: string): void {
+  pickerVisible.value = false
+  if (type === 'image') {
+    openAddImage()
+  }
+}
+
+function openAddImage(): void {
+  fileInputRef.value?.click()
+}
+
+function onFileChange(e: Event): void {
+  const input = e.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    cropSource.value = reader.result as string
+    const metrics = widgetAreaRef.value
+      ? computeCellMetrics(widgetAreaRef.value)
+      : undefined
+    cropRatio.value = metrics?.ratio ?? 1
+    cropModalVisible.value = true
+  }
+  reader.readAsDataURL(file)
+}
+
+async function onCropConfirm(dataUrl: string): Promise<void> {
+  cropModalVisible.value = false
+  try {
+    const { id } = await imageStore.create(dataUrl)
+    // 放置到第一个空闲 1×1 单元；布局已满则回滚该记录，避免留下无效数据
+    if (!placeImageWidget(id)) {
+      await imageStore.remove(id)
+    }
+  } catch (_err) {
+    // imageStore.error 已持有文案，忽略
+  }
+}
+
+/** 编辑模式下右下角删除按钮：先弹确认，再真正删除并清理数据与布局 key */
+const deleteTargetId = ref<string | null>(null)
+function requestDeleteImage(id: string): void {
+  deleteTargetId.value = id
+}
+function cancelDeleteImage(): void {
+  deleteTargetId.value = null
+}
+async function confirmDeleteImage(): Promise<void> {
+  const id = deleteTargetId.value
+  deleteTargetId.value = null
+  if (!id) return
+  removeWidget(id)
+  try {
+    await imageStore.remove(id)
+  } catch (_err) {
+    // imageStore.error 已持有文案，忽略
+  }
+}
 
 const statusLabelByStatus: Record<string, string> = {
   pending: '待办',
@@ -82,12 +169,16 @@ function selectPinnedEvent(event: TimeEvent): void {
 }
 
 const {
+  layout,
   isEditMode,
   draggingWidgetId,
   widgetStyle,
+  computeCellMetrics,
   enterEditMode,
   exitEditMode,
   resetLayout,
+  placeImageWidget,
+  removeWidget,
   startDragging,
 } = useDashboardWidgetLayout()
 
@@ -103,6 +194,15 @@ function onDragStart(widgetId: DashboardWidgetId, event: PointerEvent): void {
     :class="{ 'is-editing': isEditMode }"
     aria-label="Dashboard 小组件区域"
   >
+    <input
+      ref="fileInputRef"
+      class="db-img-file-input"
+      type="file"
+      accept="image/*"
+      hidden
+      @change="onFileChange"
+    />
+
     <div v-if="isEditMode" class="db-widget-grid" aria-hidden="true">
       <span v-for="n in 16" :key="n" class="db-widget-grid-cell"></span>
     </div>
@@ -306,14 +406,42 @@ function onDragStart(widgetId: DashboardWidgetId, event: PointerEvent): void {
       </div>
     </section>
 
+    <section
+      v-for="record in layoutImageWidgets"
+      :key="record.id"
+      class="db-widget db-widget--image"
+      :class="{ 'is-dragging': draggingWidgetId === record.id }"
+      :style="widgetStyle(record.id)"
+      :aria-label="isEditMode ? '图片组件（可拖动）' : '图片组件'"
+      @pointerdown.stop.prevent="isEditMode && onDragStart(record.id, $event)"
+    >
+      <img
+        class="db-widget-image-img"
+        :src="record.dataUrl"
+        alt="图片组件"
+        draggable="false"
+      />
+      <button
+        v-if="isEditMode"
+        class="db-img-delete"
+        type="button"
+        aria-label="删除图片组件"
+        title="删除图片组件"
+        @pointerdown.stop
+        @click.stop="requestDeleteImage(record.id)"
+      >
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2"/></svg>
+      </button>
+    </section>
+
     <div class="db-widget-actions" :class="{ 'is-editing': isEditMode }">
       <template v-if="isEditMode">
         <button
           class="db-widget-action"
           type="button"
-          :disabled="!canAddWidget"
-          aria-label="添加小组件"
-          title="添加小组件（暂无可添加的小组件）"
+          aria-label="添加组件"
+          title="添加组件"
+          @click="openAddPicker"
         >
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg>
         </button>
@@ -348,6 +476,31 @@ function onDragStart(widgetId: DashboardWidgetId, event: PointerEvent): void {
         <span>调整布局</span>
       </button>
     </div>
+
+    <ComponentPickerModal
+      :visible="pickerVisible"
+      @cancel="pickerVisible = false"
+      @select="onPickerSelect"
+    />
+
+    <ImageCropModal
+      :visible="cropModalVisible"
+      :image-data-url="cropSource"
+      :target-ratio="cropRatio"
+      @cancel="cropModalVisible = false"
+      @confirm="onCropConfirm"
+    />
+
+    <ConfirmDialog
+      :visible="deleteTargetId !== null"
+      title="删除图片？"
+      message="确定删除此图片吗？删除后将无法恢复。"
+      confirm-text="删除"
+      cancel-text="取消"
+      :danger="true"
+      @cancel="cancelDeleteImage"
+      @confirm="confirmDeleteImage"
+    />
   </section>
 </template>
 
@@ -844,6 +997,53 @@ function onDragStart(widgetId: DashboardWidgetId, event: PointerEvent): void {
   color: var(--color-text-on-gradient);
   background: var(--gradient-primary);
   border-color: transparent;
+}
+
+/* ---------------- 图片小组件 ---------------- */
+/* 普通状态 = 纯图片展示块：无标题、无边框、无操作栏 */
+.db-widget--image {
+  position: relative; /* 容纳右下角悬浮删除按钮 */
+  padding: 0;
+  overflow: hidden;
+  background: transparent;
+  border: 0;
+}
+.db-widget-image-img {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  object-fit: cover; /* 已按组件比例裁剪 → cover 恰好铺满、不变形 */
+  border-radius: var(--surface-radius);
+  user-select: none;
+  -webkit-user-drag: none;
+  touch-action: none;
+}
+/* 编辑模式下：右下角小型红色方块删除按钮，悬浮、置顶、不紧贴边缘 */
+.db-img-delete {
+  position: absolute;
+  right: 10px;
+  bottom: 10px;
+  z-index: 10;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 0;
+  border-radius: 5px;
+  background: color-mix(in srgb, var(--color-danger) 88%, #000);
+  color: #fff;
+  cursor: pointer;
+  box-shadow: 0 1px 5px rgba(0, 0, 0, 0.28);
+  transition:
+    background var(--duration-fast) var(--ease-out),
+    transform var(--duration-fast) var(--ease-out);
+}
+.db-img-delete:hover {
+  background: var(--color-danger);
+  transform: scale(1.06);
 }
 
 @media (max-width: 780px) {
