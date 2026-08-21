@@ -95,6 +95,16 @@ const calOptions = {
   // 周起始日正确 prop：startWeekOnSunday=false 即「周一」为首列，对应你图2的 一 二 三 四 五 六 日。
   // Vue Cal 4.x 默认值就是 false（周一开始），此处显式传是为了避免语义歧义。
   startWeekOnSunday: false,
+  // —— 以下三项彻底禁用 Vue Cal 默认的「点击/双击 → 更窄视图（周/日时间轴）或创建事件」行为 ——
+  //  Vue Cal 默认 dblclickToNavigate=true：双击任一日格会 switchToNarrowerView()，
+  //  从月视图一路切到「日视图（00:00~23:00 时间轴）」——这就是不想要的「日内时间段界面」。
+  // 这里在 prop 层面显式关闭，而不是仅靠 CSS/UI 隐藏。
+  dblclickToNavigate: false, // 双击不再切入周/日时间轴视图
+  clickToNavigate: false,     // 单击也不导航（默认已 false，显式声明防回归）
+  // 默认 cellClickHold=true：在月视图按住一格会创建事件；dragToCreateEvent=true 会在周/日拖动建事件。
+  // 一并关闭，防止双击之外产生自动创建/编辑日内时间段的副作用。
+  cellClickHold: false,
+  dragToCreateEvent: false,
   // —— 以下是 MYMEMO 自定义辅助参数（Vue Cal 会忽略未知 prop）——
   // cellHeight 与 spacing 目前不被 Vue Cal 4.x 根组件消费；我们已通过 .vuecal__body { gap: var(--space-2) }
   // 和 .vuecal__cell { min-height: var(--cal-cell-h, 56px) } 自定义 CSS 变量实现相同效果。
@@ -174,7 +184,8 @@ function cellKeyOf(payload: unknown): string | null {
   return null
 }
 
-/** 手动双击检测：记录最近一次格点击的时间与键；两次同一格的快速点击视为双击。
+/** 双击状态机：普通状态 → 双击开始 → 调整结束日期 → 双击确认 → 完成。
+ *  手动双击检测：记录最近一次格点击的时间与键；两次同一格的快速点击视为双击。
  *  Vue Cal 选中日期会重建格子 DOM，原生 @dblclick 因节点被替换而经常无法触发，
  *  所以在 @cell-click 上用「时间内判定」实现同样的双击语义，状态存于组件内（跨重渲染存活）。 */
 let durLastClick = { key: '', time: 0 }
@@ -190,7 +201,8 @@ function onCellClick(payload: unknown) {
   setSelectedDate(key)
 
   if (durSelect.active) {
-    // 选择结束日期模式：双击 → 用当前预览日期弹出确认；单击 → 更新预览终点
+    // 选择结束日期模式：预览延伸主要由鼠标移动(@mousemove)驱动；
+    // 单击同样更新预览终点（触屏/自动操作兜底），双击 → 确认结束日期。
     if (isDouble) {
       confirmDurEnd()
       return
@@ -199,7 +211,7 @@ function onCellClick(payload: unknown) {
     return
   }
 
-  // 普通模式双击：若命中的是「无结束日期」时间块的开始日期 → 进入选择模式
+  // 普通模式双击：若命中的是「无结束日期」时间块的开始日期 → 进入「设置结束日期」模式
   if (isDouble) {
     const block = allDurationBlocks().find(
       (b) => b.end_date == null && b.start_date === key,
@@ -280,6 +292,24 @@ function toggleDurationBlocks() {
 
 function allDurationBlocks(): DurationEvent[] {
   return (eventStore.events ?? []).filter((e): e is DurationEvent => e.type === 'duration')
+}
+
+/** 「可设置结束日期」的时间块：无结束日期时间块的开始日期键集合，用于悬浮高亮提示它可操作。 */
+const routableStartKeys = computed<Set<string>>(() => {
+  const s = new Set<string>()
+  for (const b of allDurationBlocks()) {
+    if (b.end_date == null) s.add(b.start_date)
+  }
+  return s
+})
+
+/** 选择结束日期模式下：鼠标移动 → 按「日期」实时预览结束日期，色块跟随延伸。
+ *  通过 data-date 命中当前悬浮的格子，不依赖浏览器原生 dblclick。 */
+function onDurMove(e: MouseEvent) {
+  if (!durSelect.active) return
+  const el = (e.target as HTMLElement | null)?.closest?.('[data-date]') as HTMLElement | null
+  if (!el) return
+  updatePreviewEnd(el.getAttribute('data-date') ?? '')
 }
 
 /** 某个时间块在当前交互下的「有效结束日期」（选择预览期间取 preview） */
@@ -519,7 +549,7 @@ onMounted(() => {
       <!-- Vue Cal 42 格：自定义 cell-content slot 完全重写 cell 视觉 -->
       <!-- 外层 .cal-host 是 relative 容器，用于承载「+」悬浮按钮；不改变原布局尺寸 -->
       <div class="cal-host">
-        <div class="mymemo-cal">
+        <div class="mymemo-cal" @mousemove="onDurMove">
           <div class="mymemo-weekdays" aria-hidden="true">
             <span v-for="label in weekdayLabels" :key="label">{{ label }}</span>
           </div>
@@ -531,7 +561,11 @@ onMounted(() => {
             @cell-click="onCellClick"
           >
             <template #cell-content="{ cell }">
-              <div class="vc-cell-inner">
+              <div
+                class="vc-cell-inner"
+                :data-date="cell.formattedDate"
+                :class="{ 'is-routable-start': routableStartKeys.has(cell.formattedDate) }"
+              >
                 <span
                   class="vc-day-num"
                   :class="{
@@ -680,7 +714,7 @@ onMounted(() => {
 
     <!-- Vue Cal 42 格：与独立页完全相同 -->
     <div class="cal-host">
-      <div class="mymemo-cal">
+      <div class="mymemo-cal" @mousemove="onDurMove">
         <div class="mymemo-weekdays" aria-hidden="true">
           <span v-for="label in weekdayLabels" :key="label">{{ label }}</span>
         </div>
@@ -692,7 +726,11 @@ onMounted(() => {
           @cell-click="onCellClick"
         >
           <template #cell-content="{ cell }">
-            <div class="vc-cell-inner">
+            <div
+              class="vc-cell-inner"
+              :data-date="cell.formattedDate"
+              :class="{ 'is-routable-start': routableStartKeys.has(cell.formattedDate) }"
+            >
               <span
                 class="vc-day-num"
                 :class="{
@@ -740,7 +778,7 @@ onMounted(() => {
     <!-- 选择结束日期提示（开关已移到右上角 header） -->
     <div v-if="durSelect.active" class="cal-dur-toggle-row">
       <span class="cdt-hint">
-        正在选择结束日期：单击日期预览，再次双击确认
+        正在选择结束日期：移动鼠标延伸色块，在目标日期双击确认
       </span>
     </div>
 
@@ -1259,6 +1297,15 @@ onMounted(() => {
   top: max(calc(calc(var(--lane, 0) * 10px) - 1px), 0px);
   opacity: 1;
   outline: 1px solid var(--color-accent);
+  z-index: 2;
+}
+/* 可设置结束日期的时间块（无结束日期）：悬浮该日期格时光块轻微加深/高亮，提示可操作 */
+.vc-cell-inner.is-routable-start .vc-dur-bar {
+  filter: brightness(1.02);
+}
+.vc-cell-inner.is-routable-start:hover .vc-dur-bar {
+  filter: brightness(1.18) saturate(1.12);
+  outline: 1px solid color-mix(in srgb, var(--color-accent) 55%, transparent);
   z-index: 2;
 }
 

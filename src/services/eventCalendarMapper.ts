@@ -13,7 +13,7 @@ export interface DateIndicator {
  * 规则：
  *  - CalendarEvent → event_date
  *  - DeadlineEvent → due_date（取日期部分）
- *  - DurationEvent → 从 start_date 到 end_date 跨的每一天都算有事件；无 end_date 只算开始日期
+ *  - DurationEvent → 只在开始日期与（若已确定）结束日期打点，不连续覆盖中间日期
  *  - IdeaEvent     → 不进入日历（数据映射层过滤，不产生任何日期指示器/事件标记/事件点）
  */
 export function mapEventsToDateIndicators(
@@ -150,23 +150,18 @@ function eventDates(e: TimeEvent): string[] {
       return d.isValid() ? [d.format('YYYY-MM-DD')] : []
     }
     case 'duration': {
+      // 未开启「显示时间块」时，时间块不显示连续色块/连续圆点，
+      // 只在开始日期与（若已确定）结束日期各打一个点，不覆盖中间日期。
       const start = dayjs(e.start_date)
       if (!start.isValid()) return []
-      const result: string[] = [start.format('YYYY-MM-DD')]
-      // 无结束日期：开放区块只在开始日期打点，不延伸到未来
-      if (!e.end_date) return result
-      const end = dayjs(e.end_date)
-      if (!end.isValid()) return result
-      let cur = start.startOf('day')
-      const stop = end.startOf('day')
-      // 最多跨 366 天，避免异常数据死循环
-      let guard = 0
-      while (cur.isBefore(stop)) {
-        cur = cur.add(1, 'day')
-        result.push(cur.format('YYYY-MM-DD'))
-        if (++guard > 366) break
+      const dates = [start.format('YYYY-MM-DD')]
+      if (e.end_date) {
+        const end = dayjs(e.end_date)
+        if (end.isValid() && !end.isSame(start, 'day')) {
+          dates.push(end.format('YYYY-MM-DD'))
+        }
       }
-      return result
+      return dates
     }
     default:
       // idea：灵感不走时间管理日历，返回空日期列表
