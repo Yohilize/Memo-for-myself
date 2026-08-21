@@ -18,10 +18,18 @@ import BaseBadge from '@/components/base/BaseBadge.vue'
 import BaseConfirmDialog from '@/components/base/BaseConfirmDialog.vue'
 import EventForm from '@calendar/EventForm.vue'
 import { useEventStore } from '@/stores/eventStore'
+import { useToday } from '@/composables/useToday'
+import { deriveEventDisplayStatus } from '@/services/eventService'
 import type { TimeEvent } from '@/types/event'
 import type { CreateEventInput, UpdateEventInput } from '@/services/eventTypes'
 
 const eventStore = useEventStore()
+const { todayKey } = useToday()
+
+/** 事件显示状态：非 idea 一律用「事件数据 + 今天」推导（不写回原始 status）。 */
+function displayStatus(e: TimeEvent): string {
+  return e.type === 'idea' ? '' : deriveEventDisplayStatus(e, todayKey.value)
+}
 
 const typeLabelByType: Record<string, string> = {
   calendar: '行程',
@@ -40,12 +48,14 @@ const statusLabelByStatus: Record<string, string> = {
   in_progress: '进行中',
   completed: '已完成',
   cancelled: '已取消',
+  stateless: '无状态',
 }
 
-/** 状态徽章颜色：completed 绿色、cancelled 弱化、其余用主色 */
+/** 状态徽章颜色：completed 绿色、cancelled/无状态 弱化中性色、任务类待办用主色 */
 function statusBadgeColor(status: string): string {
   if (status === 'completed') return 'var(--color-success)'
   if (status === 'cancelled') return 'var(--color-text-tertiary)'
+  if (status === 'stateless') return 'var(--color-text-secondary)'
   return 'var(--color-primary)'
 }
 
@@ -252,10 +262,10 @@ onMounted(() => {
                   <div class="tl-event-title-row">
                     <span class="tl-event-title">{{ e.title }}</span>
                     <BaseBadge
-                      v-if="e.type !== 'idea' && e.status"
-                      :color="statusBadgeColor(e.status)"
+                      v-if="e.type !== 'idea'"
+                      :color="statusBadgeColor(displayStatus(e))"
                       variant="soft"
-                    >{{ statusLabelByStatus[e.status] }}</BaseBadge>
+                    >{{ statusLabelByStatus[displayStatus(e)] ?? displayStatus(e) }}</BaseBadge>
                   </div>
                   <div class="tl-event-meta">
                     <BaseBadge :color="typeColorByType[e.type]">

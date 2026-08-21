@@ -8,6 +8,8 @@ import ComponentPickerModal from './ComponentPickerModal.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
 import ImageCropModal from './ImageCropModal.vue'
 import { useDashboardPinnedEvent } from '@/composables/useDashboardPinnedEvent'
+import { useToday } from '@/composables/useToday'
+import { deriveEventDisplayStatus } from '@/services/eventService'
 import { useImageWidgetStore } from '@/stores'
 import {
   dayEventTimeLabel,
@@ -34,6 +36,13 @@ const emit = defineEmits<{
 const widgetAreaRef = ref<HTMLElement | null>(null)
 const pinnedPickerVisible = ref(false)
 const { pinnedEvent, pinEvent, unpinEvent } = useDashboardPinnedEvent()
+const { todayKey } = useToday()
+
+/** 置顶事件显示状态：非 idea 用「事件数据 + 今天」推导（无状态/已完成/已取消照常显示）。 */
+function pinnedDisplayStatus(e: TimeEvent | null | undefined): string {
+  if (!e || e.type === 'idea') return ''
+  return deriveEventDisplayStatus(e, todayKey.value)
+}
 
 // —— 图片小组件：数据（IndexedDB）+ 添加/删除 交互 —— //
 const imageStore = useImageWidgetStore()
@@ -124,6 +133,7 @@ const statusLabelByStatus: Record<string, string> = {
   in_progress: '进行中',
   completed: '已完成',
   cancelled: '已取消',
+  stateless: '无状态',
 }
 
 function pinnedDateText(event: TimeEvent): string {
@@ -353,7 +363,7 @@ function onDragStart(widgetId: DashboardWidgetId, event: PointerEvent): void {
             <span class="db-pinned-meta">
               {{ props.typeLabelByType[pinnedEvent.type] ?? pinnedEvent.type }}
               <template v-if="pinnedEvent.type !== 'idea'">
-                · {{ statusLabelByStatus[pinnedEvent.status] ?? pinnedEvent.status }}
+                · {{ statusLabelByStatus[pinnedDisplayStatus(pinnedEvent)] ?? pinnedDisplayStatus(pinnedEvent) }}
               </template>
             </span>
           </button>

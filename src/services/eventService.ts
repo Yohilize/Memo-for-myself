@@ -1,10 +1,75 @@
 import { v4 as uuidv4 } from 'uuid'
+import dayjs from 'dayjs'
 import { eventRepository } from '@/repositories'
-import type { TimeEvent, EventType } from '@/types/event'
+import type { TimeEvent, EventType, EventStatus } from '@/types/event'
 import type { CreateEventInput, UpdateEventInput } from './eventTypes'
 
 /**
- * Event Service — 业务逻辑层。
+ * 状态推导需要的最小字段集（calendar / deadline / duration 均满足）。
+ * idea 不参与，调用侧用 type !== 'idea' 提前排除。
+ */
+export type StatusSource = {
+  type: EventType
+  status: EventStatus
+  event_date?: string | null
+  start_date?: string | null
+  end_date?: string | null
+}
+
+/**
+ * 由「事件数据 + 当前日期」推导「用于展示/统计的显示状态」。
+ * 设计原则：
+ *  · 不写回数据库的原始 status —— 每天/随时重算，避免随时间改动持久化数据；
+ *  · stateless / completed / cancelled：使用者显式指定，不因日期变化；
+ *  · deadline：暂不实现自动更新，沿用用户手动设置的状态；
+ *  · calendar / duration：按日期区间推导待办/进行中/已完成。
+ */
+export function deriveEventDisplayStatus(
+  e: StatusSource,
+  today: string | Date | dayjs.Dayjs,
+): EventStatus {
+  const t = dayjs(today).startOf('day')
+
+  // 无状态 / 终止态：使用者显式声明，永不被日期覆盖
+  if (e.status === 'stateless' || e.status === 'completed' || e.status === 'cancelled') {
+    return e.status
+  }
+
+  // deadline：暂不自动更新，沿用手动状态
+  if (e.type === 'deadline') return e.status
+
+  if (e.type === 'calendar') {
+    const ev = dayjs(e.event_date).startOf('day')
+    if (ev.isSame(t, 'day')) return 'in_progress'
+    return ev.isAfter(t) ? 'pending' : 'completed'
+  }
+
+  if (e.type === 'duration') {
+    const start = dayjs(e.start_date).startOf('day')
+    if (start.isAfter(t)) return 'pending'
+    if (e.end_date) {
+      return dayjs(e.end_date).startOf('day').isBefore(t, 'day') ? 'completed' : 'in_progress'
+    }
+    return 'in_progress' // 无明确结束日期：开始后持续进行中
+  }
+
+  return e.status
+}
+
+/** 是否计入「待办」：非 idea，且派生状态未完成、非终止、非无状态。 */
+export function isTaskPending(e: StatusSource, today: string | Date | dayjs.Dayjs): boolean {
+  if (e.type === 'idea') return false
+  const s = deriveEventDisplayStatus(e, today)
+  return s !== 'stateless' && s !== 'completed' && s !== 'cancelled'
+}
+
+/** 是否计入「今日完成」：非 idea，且派生状态为已完成。 */
+export function isCompletedToday(e: StatusSource, today: string | Date | dayjs.Dayjs): boolean {
+  if (e.type === 'idea') return false
+  return deriveEventDisplayStatus(e, today) === 'completed'
+}
+
+/** Event Service — 业务逻辑层。
  * 负责 ID 生成、时间戳、默认值填充、基本校验。
  * 不直接操作数据库，通过 Repository 访问。
  */
@@ -38,10 +103,11 @@ export const eventService = {
 
     switch (input.type) {
       case 'calendar':
+        // 行程默认「无状态」：纯时间/事件记录，不参与任务进度，除非用户显式选择任务状态
         event = {
           ...base,
           type: 'calendar',
-          status: input.status ?? 'pending',
+          status: input.status ?? 'stateless',
           event_date: input.event_date,
           all_day: input.all_day ?? false,
           event_time: input.event_time ?? '09:00',

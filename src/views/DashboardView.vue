@@ -23,6 +23,11 @@ import EventForm from '@calendar/EventForm.vue'
 import DashboardWidgetArea from '@/components/dashboard/DashboardWidgetArea.vue'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import { useEventStore } from '@/stores/eventStore'
+import { useToday } from '@/composables/useToday'
+import {
+  isTaskPending,
+  isCompletedToday,
+} from '@/services/eventService'
 import {
   filterEventsForDay,
   dayEventSortKey,
@@ -45,7 +50,8 @@ const eventStore = useEventStore()
 
 // —— Dashboard Head：真实今天的日期 & 问候语（时间段对应） —— //
 const today = dayjs()
-const todayKey = today.format('YYYY-MM-DD')
+// 跨午夜自动刷新的「今天」键：统计/今日事件基于它，天然随日期重算
+const { todayKey } = useToday()
 const dateText = computed(() => today.format('YYYY年M月D日 · dddd'))
 const greetingText = computed(() => {
   const h = today.hour()
@@ -59,9 +65,9 @@ const greetingText = computed(() => {
 
 // —— 今日事件：直接接真实 Event Store（按类型色条 + 基础样式参考 Preview pv-event） —— //
 const eventsForToday = computed<TimeEvent[]>(() => {
-  const all = filterEventsForDay(eventStore.events ?? [], todayKey)
+  const all = filterEventsForDay(eventStore.events ?? [], todayKey.value)
   return [...all].sort((a, b) =>
-    dayEventSortKey(a, todayKey).localeCompare(dayEventSortKey(b, todayKey)),
+    dayEventSortKey(a, todayKey.value).localeCompare(dayEventSortKey(b, todayKey.value)),
   )
 })
 
@@ -79,25 +85,24 @@ const typeLabelByType: Record<string, string> = {
 }
 
 // —— Dashboard 统计块：直接接真实 Event Store（新增/编辑/删除后 Pinia 响应式自动刷新） —— //
-//  · 待办：未完成任务（仅 calendar/deadline/duration；idea 无任务状态，不计入）
-//          累计 status ≈ pending / in_progress（cancelled 为终止态，不计入待办）
-//  · 今日完成：落在今天 且 status = completed 的任务事件（idea 不参与）
-//  · 灵感：type = idea 的事件
+//  · 待办：基于「事件数据 + 今天」的派生状态，仅计入未完成且非终止态的任务型事件
+//         （无状态/已完成/已取消不计入；有状态的 calendar/duration 按日期自动推导）
+//  · 今日完成：落在今天 且派生状态 = 已完成 的任务事件（idea 不参与）
+//  · 灵感：type = idea 且未归档的事件
 const statChips = computed(() => [
   {
     tag: '待办',
+    // 基于派生显示状态：无状态、已完成、已取消均不计入待办；
+    // 有状态的 calendar/duration 会根据日期自动推导为待办/进行中，已完成态不再列为待办
     value: eventStore.events.filter(
-      (e) =>
-        e.type !== 'idea' &&
-        e.status !== 'completed' &&
-        e.status !== 'cancelled',
+      (e) => e.type !== 'idea' && isTaskPending(e, todayKey.value),
     ).length,
     accent: 'var(--color-primary)',
   },
   {
     tag: '今日完成',
-    value: filterEventsForDay(eventStore.events ?? [], todayKey).filter(
-      (e) => e.type !== 'idea' && e.status === 'completed',
+    value: filterEventsForDay(eventStore.events ?? [], todayKey.value).filter(
+      (e) => e.type !== 'idea' && isCompletedToday(e, todayKey.value),
     ).length,
     accent: 'var(--color-success)',
   },

@@ -6,7 +6,10 @@
 
 export type EventType = 'calendar' | 'deadline' | 'duration' | 'idea'
 
-export type EventStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled'
+export type EventStatus = 'pending' | 'in_progress' | 'completed' | 'cancelled' | 'stateless'
+// 说明：stateless = 「无状态」，calendar / deadline / duration 三类任务型事件均支持。
+// 它表示纯事件/事项记录，不参与待办/进行中/已完成，不受自动状态更新影响，亦区别于已取消。
+// idea 为独立类型，不使用 status；deadline 的无状态同样成立，但其自动状态更新暂不实现。
 
 export type Priority = 'low' | 'medium' | 'high'
 

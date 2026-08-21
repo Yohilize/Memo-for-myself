@@ -150,7 +150,8 @@ watch(
       form.type = props.defaultType ?? 'calendar'
       form.title = ''
       form.notes = ''
-      form.status = 'pending'
+      // 新建行程默认「无状态」；deadline / duration 才默认 pending
+      form.status = form.type === 'calendar' ? 'stateless' : 'pending'
       form.event_date = d
       // 「无时间要求」默认开启：仅需日期，无需具体时间
       form.all_day = true
@@ -289,6 +290,39 @@ const typeColors: Record<EventType, string> = {
   duration: 'var(--color-event-duration)',
   idea: 'var(--color-event-idea)',
 }
+
+/* —— 状态标签：calendar / deadline / duration 均支持「无状态」；idea 无任务状态语义 —— */
+const statusOptions = computed<EventStatus[]>(() => {
+  if (form.type === 'idea') return []
+  return ['stateless', 'pending', 'in_progress', 'completed', 'cancelled']
+})
+
+function statusTabLabel(s: EventStatus): string {
+  switch (s) {
+    case 'stateless':
+      return '无状态'
+    case 'pending':
+      return '待办'
+    case 'in_progress':
+      return '进行中'
+    case 'completed':
+      return '已完成'
+    case 'cancelled':
+      return '已取消'
+  }
+}
+
+// 新增模式下切换类型时，若当前状态不在新类型的允许集合内则回退到该类型默认值
+watch(
+  () => form.type,
+  (t) => {
+    if (t === 'idea') return
+    const allowed = statusOptions.value
+    if (!allowed.includes(form.status)) {
+      form.status = t === 'calendar' ? 'stateless' : 'pending'
+    }
+  },
+)
 </script>
 
 <template>
@@ -474,26 +508,18 @@ const typeColors: Record<EventType, string> = {
             </label>
           </template>
 
-          <!-- 通用：状态（idea 无任务状态语义，不显示；其余类型新增默认 pending，编辑时可改） -->
+          <!-- 通用：状态（idea 无任务状态语义，不显示；行程支持无状态/待办等；deadline/duration 仅任务状态） -->
           <div v-if="form.type !== 'idea'" class="ef-row">
             <span class="ef-label">状态</span>
             <div class="ef-status-tabs">
               <button
-                v-for="s in (['pending', 'in_progress', 'completed', 'cancelled'] as EventStatus[])"
+                v-for="s in statusOptions"
                 :key="s"
                 class="ef-st-tab"
                 :class="{ active: form.status === s }"
                 @click="form.status = s"
               >
-                {{
-                  s === 'pending'
-                    ? '待办'
-                    : s === 'in_progress'
-                      ? '进行中'
-                      : s === 'completed'
-                        ? '已完成'
-                        : '已取消'
-                }}
+                {{ statusTabLabel(s) }}
               </button>
             </div>
           </div>
