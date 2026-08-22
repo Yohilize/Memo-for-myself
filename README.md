@@ -6,15 +6,7 @@
 
 MYMEMO 是一款面向个人长期使用的时间管理工具。
 
-它区别于传统 Todo / Calendar 的地方：
-
-- 不强调复杂协作
-- 不追求企业化管理
-- 核心是个人时间管理和长期陪伴使用
-
-用户是项目作者本人。工具会随着使用持续迭代，逐渐形成符合个人审美和习惯的数字空间。
-
-核心功能模块：日历事件、Deadline 追踪、时间块（Duration）、灵感记录（Idea）。
+核心功能模块：日历事件、Deadline 追踪、时间块（Duration）、灵感记录（Idea）
 
 ## 视觉设计理念
 
@@ -25,15 +17,13 @@ MYMEMO 是一款面向个人长期使用的时间管理工具。
 - Anime-inspired aesthetic（日系二次元美学倾向）
 - Personal Dashboard / Floating Panel（个人面板 / 悬浮容器）
 
-这些是当前阶段的视觉方向，不是固定不变的产品规格。作者会根据审美和使用感受持续调整。
-
 设计原则：
 
 - **Background Layer 与 Content Layer 分离** — 背景素材（渐变、光球、壁纸）独立于业务组件，更换背景不影响功能逻辑
 - **Design Token 管理视觉参数** — 颜色、透明度、blur、圆角、阴影等统一通过 CSS Variables 管理，不在组件中硬编码
 - **保证未来视觉迭代时不影响业务组件** — 基础组件封装样式，业务页面通过组件组合，视觉调整集中在 Token 层和组件层
 
-Design Lab (`/playground`) 是长期维护的视觉实验模块，用于测试参数、调整主题、验证组件效果。它服务于开发者，不是面向终端用户的主题定制功能。
+Design Lab (`/playground`) 是长期维护的视觉实验模块，用于测试参数、调整主题、验证组件效果。
 
 ## 架构
 
@@ -78,7 +68,6 @@ src/
 ├── components/
 │   ├── base/         # 基础组件 (Button, Card, Input, Badge, Slider)
 │   └── layout/       # 布局组件 (BackgroundLayer)
-├── design-lab/       # 设计实验室（开发者工具，不与业务逻辑耦合）
 ├── router/           # Vue Router
 ├── stores/           # Pinia stores
 ├── services/         # 业务逻辑层
@@ -86,6 +75,13 @@ src/
 ├── styles/           # 全局样式和 Design Tokens
 ├── types/            # TypeScript 类型定义
 └── views/            # 页面
+```
+
+顶层模块：
+
+```
+Calendar/     # Calendar 独立开发模块（@calendar 别名）
+design-lab/   # 设计实验室，开发者工具（@design-lab 别名）
 ```
 
 ## 本地开发
@@ -115,15 +111,15 @@ npm run preview      # 预览构建产物
 
 ### 页面入口
 
-| 路径 | 说明 |
-|------|------|
-| `/` | MYMEMO 主应用 |
-| `/playground` | Design Lab（设计实验室） |
-| `/data-test` | Phase 1 数据持久化验证页（临时） |
+| 路径            | 说明                   |
+| ------------- | -------------------- |
+| `/`           | MYMEMO 主应用           |
+| `/design-lab` | Design Lab（设计实验室）    |
+| `/data-test`  | Phase 1 数据持久化验证页（临时） |
 
 ### Design Lab 说明
 
-Design Lab（`/playground`）是**开发辅助工具**，不属于最终用户功能。
+Design Lab（`/design-lab`）是**开发辅助工具**，不属于最终用户功能。
 
 用途：
 
@@ -133,7 +129,7 @@ Design Lab（`/playground`）是**开发辅助工具**，不属于最终用户�
 - 验证基础组件在不同参数下的表现
 - 导出 CSS 变量供开发参考
 
-Design Lab 中修改的参数保存在浏览器 localStorage 中，仅影响当前开发者的浏览器，不会写入代码或影响其他环境。它独立于业务逻辑，位于 `src/design-lab/`。
+Design Lab 中修改的参数保存在浏览器 localStorage 中，仅影响当前开发者的浏览器，不会写入代码或影响其他环境。它独立于业务逻辑，位于 `design-lab/`。
 
 ## 开发路线
 
