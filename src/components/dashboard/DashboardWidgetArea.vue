@@ -316,12 +316,38 @@ function onDragStart(widgetId: DashboardWidgetId, event: PointerEvent): void {
           <span v-for="n in 6" :key="n"></span>
         </button>
       </header>
-      <div class="db-widget-scroll db-calendar-scroll">
-        <CalendarView
-          embedded
-          @edit-event="emit('edit-event', $event)"
-          @delete-event="emit('delete-event', $event)"
-        />
+      <!-- 内部横向分栏：日历 ≈ 2/3 | 事件总览 ≈ 1/3，同一水平布局，不改变 Widget 外部 2×2 尺寸 -->
+      <div class="db-cal-split">
+        <div class="db-cal-left">
+          <CalendarView
+            embedded
+            @edit-event="emit('edit-event', $event)"
+            @delete-event="emit('delete-event', $event)"
+          />
+        </div>
+        <aside class="db-cal-overview" aria-label="事件总览">
+          <div class="db-cal-overview-head">
+            <span class="db-cal-overview-title">事件总览</span>
+            <span v-if="props.events.length" class="db-cal-overview-count">
+              {{ props.events.length }}
+            </span>
+          </div>
+          <p v-if="!props.events.length" class="db-cal-overview-empty">
+            当前日期暂无事件
+          </p>
+          <ul v-else class="db-cal-overview-list">
+            <li
+              v-for="e in props.events"
+              :key="e.id"
+              class="db-cal-overview-item"
+              :title="`${e.title} · 点击编辑`"
+              @click="emit('edit-event', e)"
+            >
+              <span class="db-cal-ov-time">{{ dayEventTimeLabel(e, props.todayKey) }}</span>
+              <span class="db-cal-ov-title">{{ e.title }}</span>
+            </li>
+          </ul>
+        </aside>
       </div>
     </section>
 
@@ -666,6 +692,175 @@ function onDragStart(widgetId: DashboardWidgetId, event: PointerEvent): void {
 .db-cal-link:hover {
   opacity: 1;
   background: color-mix(in srgb, var(--color-primary) 10%, transparent);
+}
+
+/* ============ 日历 Widget 内部分栏：日历 ≈ 2/3 | 事件总览 ≈ 1/3 ============
+ * 仅重新分配 Widget 内部空间；不改 Widget 外部 2×2 尺寸，不改日历数据/交互逻辑。 */
+.db-cal-split {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: row;
+  align-items: stretch;
+  gap: 10px;
+  padding: 2px 12px 12px;
+}
+
+/* —— 左列：日历占约 2/3 —— */
+.db-cal-left {
+  flex: 0 0 66.66%;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+/* 让嵌入日历填满左列并压缩垂直空间，确保 42 格整格可见、无内部滚动 */
+.db-cal-left :deep(.cal-embedded) {
+  width: 100%;
+  height: 100%;
+  gap: 6px;
+}
+.db-cal-left :deep(.cal-header--embedded) {
+  margin-bottom: 0;
+}
+.db-cal-left :deep(.cal-host) {
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+.db-cal-left :deep(.mymemo-cal) {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  --cal-cell-h: 26px; /* 作为最小行高下限；空间富余时由 flex 拉伸填满 */
+}
+.db-cal-left :deep(.mymemo-weekdays) {
+  flex: 0 0 auto;
+  margin-bottom: 5px;
+  font-size: 9px;
+}
+.db-cal-left :deep(.vuecal) {
+  flex: 1;
+  min-height: 0;
+  height: auto;
+}
+.db-cal-left :deep(.vuecal__body),
+.db-cal-left :deep(.vuecal__weeks) {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 0;
+}
+.db-cal-left :deep(.vuecal__week) {
+  flex: 1 1 0;
+  min-height: 0;
+}
+.db-cal-left :deep(.vuecal__cell) {
+  min-height: 0 !important;
+}
+.db-cal-left :deep(.vc-day-num) {
+  width: 30px;
+  height: 28px;
+  font-size: 11px;
+  border-radius: 9px;
+}
+/* 选中日期事件列表改由右侧「事件总览」承担；隐藏日历视图内嵌列表，避免纵向滚动溢出 */
+.db-cal-left :deep(.day-events),
+.db-cal-left :deep(.cal-dur-toggle-row) {
+  display: none !important;
+}
+
+/* —— 右列：事件总览占约 1/3 —— */
+.db-cal-overview {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 8px 0 0 10px;
+  border-left: 1px dashed color-mix(in srgb, var(--color-accent) 22%, var(--surface-border));
+  overflow: hidden;
+}
+.db-cal-overview-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  flex: 0 0 auto;
+}
+.db-cal-overview-title {
+  font-size: 12px;
+  font-weight: var(--font-semibold);
+  color: var(--color-text-primary);
+}
+.db-cal-overview-count {
+  font-size: 10px;
+  font-weight: var(--font-semibold);
+  color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 8%, transparent);
+  padding: 1.5px 7px;
+  border-radius: 999px;
+}
+.db-cal-overview-empty {
+  margin: 0;
+  flex: 1;
+  display: flex;
+  align-items: center;
+  font-size: 11px;
+  color: var(--color-text-tertiary);
+}
+.db-cal-overview-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  min-height: 0;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.db-cal-overview-item {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  padding: 4px 6px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background var(--duration-fast) var(--ease-out);
+}
+.db-cal-overview-item:hover {
+  background: var(--glass-bg-hover);
+}
+.db-cal-ov-time {
+  flex: 0 0 auto;
+  min-width: 34px;
+  color: var(--color-text-tertiary);
+  font-size: 10px;
+  font-variant-numeric: tabular-nums;
+}
+.db-cal-ov-title {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-primary);
+  font-size: 11px;
+  font-weight: var(--font-medium);
+}
+
+/* 窗口过窄时 2×2 Widget 装不下「2/3 日历 + 1/3 总览」：隐藏总览，日历收回整宽，避免格宽塌缩。
+ * 置于各基础规则之后，保证在层叠中覆盖 display:flex。 */
+@media (max-width: 900px) {
+  .db-cal-overview {
+    display: none;
+  }
+  .db-cal-left {
+    flex: 1 1 100%;
+  }
 }
 
 .db-pinned-mark {
