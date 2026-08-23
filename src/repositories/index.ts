@@ -4,3 +4,9 @@ export { backgroundRepository } from './backgroundRepository'
 export type { IBackgroundRepository } from './IBackgroundRepository'
 export { imageWidgetRepository } from './imageWidgetRepository'
 export type { IImageWidgetRepository } from './IImageWidgetRepository'
+export { dataTransferRepository } from './dataTransferRepository'
+export type {
+  IDataTransferRepository,
+  DataTransferSnapshot,
+  MergeResult,
+} from './IDataTransferRepository'

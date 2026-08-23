@@ -17,6 +17,7 @@ import {
 } from '@/services/eventCalendarMapper'
 import type { TimeEvent, DurationEvent } from '@/types/event'
 import type { CreateEventInput, UpdateEventInput } from '@/services/eventTypes'
+import { STORAGE_KEYS } from '@/services/storageKeys'
 import { DEFAULT_DURATION_COLOR } from '@/services/eventService'
 
 /**
@@ -252,7 +253,7 @@ function orderedTypes(dKey: string): string[] {
  * 关闭：退回传统小圆点 indicator。
  * 默认关闭，且开关状态持久化到 localStorage，刷新/下次进入保持一致。
  */
-const DUR_TOGGLE_KEY = 'mymemo.cal.show-duration-blocks.v1'
+const DUR_TOGGLE_KEY = STORAGE_KEYS.calShowDurationBlocks
 
 function loadShowDurationBlocks(): boolean {
   if (typeof window === 'undefined') return false

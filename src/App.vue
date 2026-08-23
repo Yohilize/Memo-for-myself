@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { RouterView } from 'vue-router'
 import BackgroundLayer from '@/components/layout/BackgroundLayer.vue'
+import DataManageModal from '@/components/dashboard/DataManageModal.vue'
 </script>
 
 <template>
@@ -8,6 +9,7 @@ import BackgroundLayer from '@/components/layout/BackgroundLayer.vue'
   <main class="app-content">
     <RouterView />
   </main>
+  <DataManageModal />
 </template>
 
 <style scoped>

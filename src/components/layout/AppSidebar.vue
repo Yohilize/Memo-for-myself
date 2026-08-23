@@ -14,6 +14,7 @@
  */
 import { RouterLink, useRoute } from 'vue-router'
 import { computed } from 'vue'
+import { useDataManageModal } from '@/composables/useDataManageModal'
 
 interface Props {
   /**
@@ -28,6 +29,8 @@ const props = defineProps<Props>()
 
 const route = useRoute()
 const currentPath = computed(() => props.activePath ?? route.path)
+
+const { open: openDataManage } = useDataManageModal()
 
 function isActive(path: string) {
   if (path === '/') return currentPath.value === '/'
@@ -61,16 +64,32 @@ function isActive(path: string) {
         title="灵感"
       >💡</RouterLink>
     </nav>
-    <RouterLink to="/design-lab" class="db-dsl-entry" title="Design Lab（视觉调试）">
-      <svg class="db-dsl-ic" aria-hidden="true" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
-        <circle cx="13.5" cy="6.5" r=".5"/>
-        <circle cx="17.5" cy="10.5" r=".5"/>
-        <circle cx="8.5" cy="7.5" r=".5"/>
-        <circle cx="6.5" cy="12.5" r=".5"/>
-        <path d="M12 2a10 10 0 0 0-7.07 17.07A10 10 0 1 0 12 2z"/>
-        <path d="M12 22C9 18 6 14 6 12c0-3 2.5-5 6-5s6 2 6 5c0 2-3 6-6 10z"/>
-      </svg>
-    </RouterLink>
+    <div class="db-sidebar-bottom">
+      <button
+        class="db-entry-btn"
+        type="button"
+        title="数据导入 / 导出"
+        aria-label="数据导入 / 导出"
+        @click="openDataManage"
+      >
+        <svg class="db-entry-ic" aria-hidden="true" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="m21 16-4 4-4-4"/>
+          <path d="M17 20V4"/>
+          <path d="m3 8 4-4 4 4"/>
+          <path d="M7 4v16"/>
+        </svg>
+      </button>
+      <RouterLink to="/design-lab" class="db-entry-btn" title="Design Lab（视觉调试）">
+        <svg class="db-entry-ic" aria-hidden="true" viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="13.5" cy="6.5" r=".5"/>
+          <circle cx="17.5" cy="10.5" r=".5"/>
+          <circle cx="8.5" cy="7.5" r=".5"/>
+          <circle cx="6.5" cy="12.5" r=".5"/>
+          <path d="M12 2a10 10 0 0 0-7.07 17.07A10 10 0 1 0 12 2z"/>
+          <path d="M12 22C9 18 6 14 6 12c0-3 2.5-5 6-5s6 2 6 5c0 2-3 6-6 10z"/>
+        </svg>
+      </RouterLink>
+    </div>
   </aside>
 </template>
 
@@ -132,11 +151,18 @@ function isActive(path: string) {
     inset 0 0 0 1px color-mix(in srgb, var(--color-primary) 14%, transparent),
     0 2px 6px color-mix(in srgb, var(--color-primary) 10%, transparent);
 }
-/* 底部 Design Lab 入口小胶囊：固定到 sidebar 底部 */
-.db-dsl-entry {
+/* 底部入口组（数据管理 + Design Lab）：固定到 sidebar 底部，两个圆形按钮共用同一套玻璃视觉 */
+.db-sidebar-bottom {
   margin-top: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.db-entry-btn {
   width: 32px;
   height: 32px;
+  padding: 0;
   border-radius: 50%;
   display: inline-flex;
   align-items: center;
@@ -145,17 +171,18 @@ function isActive(path: string) {
   background: color-mix(in srgb, var(--color-primary) 6%, transparent);
   color: var(--color-primary);
   text-decoration: none;
+  cursor: pointer;
   transition:
     background var(--duration-fast) var(--ease-out),
     transform var(--duration-fast) var(--ease-out),
     box-shadow var(--duration-fast) var(--ease-out);
 }
-.db-dsl-entry:hover {
+.db-entry-btn:hover {
   background: var(--glass-bg-hover);
   transform: translateY(-1px);
   box-shadow: 0 2px 8px color-mix(in srgb, var(--color-primary) 16%, transparent);
 }
-.db-dsl-ic {
+.db-entry-ic {
   flex: 0 0 auto;
   display: block;
 }

@@ -1,5 +1,6 @@
 import { reactive, ref, watch } from 'vue'
 import { useFixedBackgroundStore } from '@/stores'
+import { STORAGE_KEYS } from '@/services/storageKeys'
 import type { BackgroundSettings } from '@/db/database'
 
 /**
@@ -61,7 +62,7 @@ const defaults: TokenState = {
   accent2Color: DEFAULT_PRESET.a2,
 }
 
-const STORAGE_KEY = 'mymemo-design-lab-tokens'
+const STORAGE_KEY = STORAGE_KEYS.designLabTokens
 
 function loadState(): TokenState {
   try {

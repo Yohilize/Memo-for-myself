@@ -1,8 +1,9 @@
 import { computed, ref, watch } from 'vue'
 import { useEventStore } from '@/stores/eventStore'
+import { STORAGE_KEYS } from '@/services/storageKeys'
 import type { TimeEvent } from '@/types/event'
 
-const STORAGE_KEY = 'mymemo.dashboard.pinned-event.v1'
+const STORAGE_KEY = STORAGE_KEYS.dashboardPinnedEvent
 const pinnedEventId = ref(loadPinnedEventId())
 
 function loadPinnedEventId(): string | null {

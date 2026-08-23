@@ -1,4 +1,5 @@
 import { onUnmounted, ref, watch } from 'vue'
+import { STORAGE_KEYS } from '@/services/storageKeys'
 
 /**
  * Dashboard Widget 的布局管理。
@@ -31,7 +32,7 @@ export interface CellMetrics {
 }
 
 const GRID_SIZE = 4
-const STORAGE_KEY = 'mymemo.dashboard.widget-layout.v1'
+const STORAGE_KEY = STORAGE_KEYS.dashboardWidgetLayout
 
 /** 图片组件固定为 1×1 */
 const IMAGE_SPAN = { colSpan: 1, rowSpan: 1 }
