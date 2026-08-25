@@ -847,6 +847,7 @@ onMounted(() => {
     v-model:visible="formVisible"
     :default-date="selectedDateKey"
     :editing-event="editingEvent"
+    :size-variant="embedded ? 'large' : 'standard'"
     @submit-create="handleSubmitCreate"
     @submit-update="handleSubmitUpdate"
     @delete="(id) => { const e = eventStore.events.find(x => x.id === id); if (e) requestDelete(e) }"

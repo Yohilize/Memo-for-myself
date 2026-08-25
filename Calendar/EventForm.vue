@@ -40,12 +40,20 @@ interface Props {
   defaultDate?: string // 'YYYY-MM-DD'，新增时的默认日期锚点
   defaultType?: EventType // 新增时的默认类型（不传则为 calendar）
   editingEvent?: TimeEvent | null
+  /**
+   * 尺寸变体：
+   *  - 'standard'（默认）：紧凑舒适尺寸，供独立 /calendar 页等常规场景。
+   *  - 'large'：更大、更适合桌面鼠标操作的尺寸（宽约 1/4、高约 2/3 视口），
+   *    供 Dashboard 日历 widget 的「新增事件」界面使用；内部控件同步放大。
+   */
+  sizeVariant?: 'standard' | 'large'
 }
 
 const props = withDefaults(defineProps<Props>(), {
   defaultDate: () => dayjs().format('YYYY-MM-DD'),
   defaultType: 'calendar',
   editingEvent: null,
+  sizeVariant: 'standard',
 })
 
 const emit = defineEmits<{
@@ -335,7 +343,13 @@ watch(
   -->
   <Teleport to="body">
     <Transition name="fade">
-      <div v-if="visible" class="ef-mask" @click.self="close" aria-label="新增/编辑事件">
+      <div
+        v-if="visible"
+        class="ef-mask"
+        :class="{ 'ef-mask--large': props.sizeVariant === 'large' }"
+        @click.self="close"
+        aria-label="新增/编辑事件"
+      >
       <BaseCard padding="md" class="ef-pop" role="dialog" aria-modal="true">
         <!-- === 头部：标题 + 类型标识 === -->
         <header class="ef-head">
@@ -948,5 +962,139 @@ watch(
 @media (max-width: 520px) {
   .ef-mask { padding: 12px; }
   .ef-pop { width: 100%; }
+  /* large 变体在小屏回退为常规宽度，避免溢出 */
+  .ef-mask--large .ef-pop {
+    width: 100%;
+    min-width: 0;
+    height: min(80vh, 820px);
+  }
 }
-</style>
+
+/* ==============================================================================
+ *  large 变体：Dashboard 日历组件「新增事件」界面更大尺寸
+ *  · 目标：宽约 1/4 视口、高约 2/3 视口，保持居中；内部全部控件按比例放大，
+ *    改善桌面端鼠标操作的点击区域与间距。不影响独立 /calendar 页与今日事件编辑弹窗。
+ * ============================================================================== */
+.ef-mask--large .ef-pop {
+  width: min(100%, min(25vw, 560px));
+  min-width: 460px;
+  height: min(66vh, 820px);
+  max-height: min(66vh, 820px);
+  gap: 18px;
+}
+.ef-mask--large .ef-head {
+  gap: 12px;
+}
+.ef-mask--large .ef-head-left {
+  gap: 12px;
+}
+.ef-mask--large .ef-title {
+  font-size: 19px;
+}
+.ef-mask--large .ef-close {
+  width: 36px !important;
+  height: 36px !important;
+  font-size: 24px;
+}
+.ef-mask--large .ef-body {
+  gap: 18px;
+  padding-right: 4px;
+}
+.ef-mask--large .ef-row {
+  gap: 9px;
+}
+.ef-mask--large .ef-row.ef-inline {
+  gap: 14px;
+}
+.ef-mask--large .ef-label {
+  font-size: 13px;
+  letter-spacing: 0.04em;
+}
+/* 标题 / 时长 / 备注等文本输入框放大 */
+.ef-mask--large :deep(.base-input),
+.ef-mask--large .ef-duration-input,
+.ef-mask--large .ef-textarea {
+  padding: 12px 16px;
+  font-size: 15px;
+  border-radius: var(--surface-radius);
+}
+/* 类型 / 优先级 / 状态 选择 tab 放大 */
+.ef-mask--large .ef-type-tab,
+.ef-mask--large .ef-pr-tab,
+.ef-mask--large .ef-st-tab {
+  padding: 10px 18px;
+  font-size: 14px;
+  border-radius: 999px;
+}
+.ef-mask--large .ef-type-tabs,
+.ef-mask--large .ef-priority-tabs,
+.ef-mask--large .ef-status-tabs {
+  gap: 8px;
+}
+/* 日期 / 时间选择器触发器放大 */
+.ef-mask--large :deep(.dp-trigger),
+.ef-mask--large :deep(.tp-trigger) {
+  height: 46px;
+  font-size: 15px;
+  padding: 0 14px;
+  gap: 10px;
+}
+.ef-mask--large .ef-date-field,
+.ef-mask--large .ef-time-field {
+  gap: 9px;
+}
+/* 时间块色块放大 */
+.ef-mask--large .ef-color-row {
+  gap: 10px;
+}
+.ef-mask--large .ef-color-swatch {
+  width: 30px;
+  height: 30px;
+}
+/* 「无时间要求」开关放大 */
+.ef-mask--large .ef-switch-field,
+.ef-mask--large .ef-switch-row {
+  gap: 8px;
+}
+.ef-mask--large .ef-switch {
+  width: 52px;
+  height: 28px;
+}
+.ef-mask--large .ef-switch .ef-switch-knob {
+  width: 20px;
+  height: 20px;
+  top: 3px;
+  left: 3px;
+}
+.ef-mask--large .ef-switch.is-on .ef-switch-knob {
+  transform: translateX(24px);
+}
+/* 复选框 / 归档 / 固定到仪表盘 */
+.ef-mask--large .ef-checkbox,
+.ef-mask--large .ef-pin-toggle {
+  gap: 8px;
+  font-size: 14px;
+}
+/* 底部取消 / 保存 / 删除按钮：加大点击区域 */
+.ef-mask--large .ef-foot {
+  gap: 12px;
+  padding-top: 10px;
+}
+.ef-mask--large .ef-foot-left,
+.ef-mask--large .ef-foot-right {
+  gap: 10px;
+}
+.ef-mask--large :deep(.base-btn) {
+  padding: 11px 22px;
+  font-size: 15px;
+}
+/* 小字提示：随整体放大以保证可读 */
+.ef-mask--large .ef-field-hint {
+  font-size: 12px;
+}
+.ef-mask--large .ef-error {
+  font-size: 13px;
+  padding: 8px 12px;
+}
+
+/* —— 过渡动画 —— */</style>
