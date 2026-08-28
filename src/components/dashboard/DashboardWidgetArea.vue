@@ -173,6 +173,18 @@ function pinnedTimeText(event: TimeEvent): string {
   }
 }
 
+const priorityLabelByPriority: Record<'low' | 'medium' | 'high', string> = {
+  low: '低',
+  medium: '中',
+  high: '高',
+}
+
+/** 提取固定事件右侧可展示的正文：idea 优先 content，其余统一展示 notes（无则为空串）。 */
+function pinnedBodyText(event: TimeEvent): string {
+  if (event.type === 'idea') return event.content || event.notes
+  return event.notes
+}
+
 function selectPinnedEvent(event: TimeEvent): void {
   pinEvent(event.id)
   pinnedPickerVisible.value = false
@@ -375,42 +387,68 @@ function onDragStart(widgetId: DashboardWidgetId, event: PointerEvent): void {
       </header>
 
       <div class="db-pinned-body">
-        <template v-if="pinnedEvent">
-          <button
-            class="db-pinned-summary"
-            type="button"
-            :title="`${pinnedEvent.title} · 点击编辑`"
-            @click="emit('edit-event', pinnedEvent)"
-          >
-            <span class="db-pinned-title">{{ pinnedEvent.title }}</span>
-            <span class="db-pinned-meta">
-              {{ pinnedDateText(pinnedEvent) }} · {{ pinnedTimeText(pinnedEvent) }}
-            </span>
-            <span class="db-pinned-meta">
-              {{ props.typeLabelByType[pinnedEvent.type] ?? pinnedEvent.type }}
-              <template v-if="pinnedEvent.type !== 'idea'">
-                · {{ statusLabelByStatus[pinnedDisplayStatus(pinnedEvent)] ?? pinnedDisplayStatus(pinnedEvent) }}
-              </template>
-            </span>
-          </button>
-        </template>
-        <div v-else class="db-pinned-empty">暂无固定事件</div>
-        <div class="db-pinned-controls">
-          <button
-            class="db-pinned-select"
-            type="button"
-            @click="pinnedPickerVisible = true"
-          >
-            选择事件
-          </button>
-          <button
-            v-if="pinnedEvent"
-            class="db-pinned-unpin"
-            type="button"
-            @click="unpinEvent"
-          >
-            取消固定
-          </button>
+        <div class="db-pinned-card">
+          <!-- 左列：事件标题 + 选择事件/取消固定。列宽由内容自适应，分割线随其右端定位 -->
+          <div class="db-pinned-left">
+            <button
+              v-if="pinnedEvent"
+              class="db-pinned-titlebtn"
+              type="button"
+              :title="`${pinnedEvent.title} · 点击编辑`"
+              @click="emit('edit-event', pinnedEvent)"
+            >
+              <span class="db-pinned-title">{{ pinnedEvent.title }}</span>
+            </button>
+            <div v-else class="db-pinned-empty">暂无固定事件</div>
+            <div class="db-pinned-controls">
+              <button
+                class="db-pinned-select"
+                type="button"
+                @click="pinnedPickerVisible = true"
+              >
+                选择事件
+              </button>
+              <button
+                v-if="pinnedEvent"
+                class="db-pinned-unpin"
+                type="button"
+                @click="unpinEvent"
+              >
+                取消固定
+              </button>
+            </div>
+          </div>
+
+          <!-- 分割线：位置由左列内容宽度自适应，不写死固定比例 -->
+          <div class="db-pinned-divider" aria-hidden="true"></div>
+
+          <!-- 右列：固定事件具体内容（按事件类型显示合适信息） -->
+          <div class="db-pinned-right">
+            <div v-if="pinnedEvent" class="db-pinned-right-content">
+              <div class="db-pinned-type-row">
+                <BaseBadge :color="props.typeColorByType[pinnedEvent.type] ?? 'var(--color-text-tertiary)'">
+                  {{ props.typeLabelByType[pinnedEvent.type] ?? pinnedEvent.type }}
+                </BaseBadge>
+                <span
+                  v-if="pinnedEvent.type !== 'idea'"
+                  class="db-pinned-status"
+                >
+                  {{ statusLabelByStatus[pinnedDisplayStatus(pinnedEvent)] ?? pinnedDisplayStatus(pinnedEvent) }}
+                </span>
+              </div>
+              <div class="db-pinned-time">
+                {{ pinnedDateText(pinnedEvent) }} · {{ pinnedTimeText(pinnedEvent) }}
+              </div>
+              <div v-if="pinnedEvent.type === 'deadline'" class="db-pinned-extra">
+                优先级：{{ priorityLabelByPriority[pinnedEvent.priority] ?? pinnedEvent.priority }}
+              </div>
+              <p v-if="pinnedBodyText(pinnedEvent)" class="db-pinned-desc">{{ pinnedBodyText(pinnedEvent) }}</p>
+              <div v-if="pinnedEvent.tags.length" class="db-pinned-tags">
+                <span v-for="tag in pinnedEvent.tags" :key="tag" class="db-pinned-tag">#{{ tag }}</span>
+              </div>
+            </div>
+            <div v-else class="db-pinned-right-empty">—</div>
+          </div>
         </div>
       </div>
 
@@ -876,19 +914,34 @@ function onDragStart(widgetId: DashboardWidgetId, event: PointerEvent): void {
   min-height: 0;
   flex: 1;
   display: flex;
-  flex-direction: column;
-  justify-content: flex-start;
-  align-items: flex-start;
-  gap: 8px;
+  align-items: stretch;
   padding: 4px 12px 12px;
 }
-.db-pinned-summary {
+/* —— 左右结构卡片：左列宽由内容自适应，分割线随其右端定位（不写死比例）—— */
+.db-pinned-card {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 5px;
+  align-items: stretch;
+  gap: 0;
   width: 100%;
   min-width: 0;
+  padding: 12px;
+  border: 1px solid var(--surface-border);
+  border-radius: calc(var(--surface-radius) - 2px);
+  background: color-mix(in srgb, var(--surface-bg) 82%, transparent);
+  box-shadow: 0 2px 10px color-mix(in srgb, var(--color-primary) 6%, transparent);
+}
+.db-pinned-left {
+  flex: 0 1 auto;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 9px;
+  padding-right: 12px;
+}
+.db-pinned-titlebtn {
+  max-width: 100%;
   padding: 0;
   border: 0;
   background: transparent;
@@ -896,11 +949,12 @@ function onDragStart(widgetId: DashboardWidgetId, event: PointerEvent): void {
   text-align: left;
   cursor: pointer;
 }
-.db-pinned-summary:hover .db-pinned-title {
+.db-pinned-titlebtn:hover .db-pinned-title {
   color: var(--color-primary);
 }
 .db-pinned-title {
-  width: 100%;
+  display: block;
+  max-width: 220px;
   overflow: hidden;
   color: var(--color-text-primary);
   font-size: 13px;
@@ -910,14 +964,86 @@ function onDragStart(widgetId: DashboardWidgetId, event: PointerEvent): void {
   white-space: nowrap;
   transition: color var(--duration-fast) var(--ease-out);
 }
-.db-pinned-meta {
-  max-width: 100%;
+.db-pinned-divider {
+  flex: 0 0 1px;
+  align-self: stretch;
+  background: color-mix(in srgb, var(--color-accent) 22%, var(--surface-border));
+}
+.db-pinned-right {
+  flex: 1 1 0;
+  min-width: 0;
+  min-height: 0;
+  padding-left: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
   overflow: hidden;
-  color: var(--color-text-tertiary);
-  font-size: 10px;
-  line-height: 1.35;
+}
+.db-pinned-right-content {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  max-height: 100%;
+  overflow: hidden;
+}
+.db-pinned-type-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-width: 0;
+}
+.db-pinned-status {
+  min-width: 0;
+  overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  color: var(--color-text-tertiary);
+  font-size: 9px;
+}
+.db-pinned-time {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-secondary);
+  font-size: 10px;
+}
+.db-pinned-extra {
+  color: var(--color-text-tertiary);
+  font-size: 10px;
+}
+.db-pinned-desc {
+  margin: 0;
+  color: var(--color-text-secondary);
+  font-size: 10px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+  display: -webkit-box;
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.db-pinned-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.db-pinned-tag {
+  display: inline-block;
+  padding: 1px 7px;
+  font-size: 9px;
+  border-radius: 999px;
+  background: var(--color-accent-2-soft);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-medium);
+}
+.db-pinned-right-empty {
+  color: var(--color-text-tertiary);
+  font-size: 11px;
 }
 .db-pinned-unpin,
 .db-pinned-select {
