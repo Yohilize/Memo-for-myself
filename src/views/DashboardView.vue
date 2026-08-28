@@ -19,10 +19,10 @@ import dayjs from 'dayjs'
 import { computed, onMounted, ref } from 'vue'
 import BaseCard from '@/components/base/BaseCard.vue'
 import BaseConfirmDialog from '@/components/base/BaseConfirmDialog.vue'
-import EventForm from '@calendar/EventForm.vue'
 import DashboardWidgetArea from '@/components/dashboard/DashboardWidgetArea.vue'
 import AppSidebar from '@/components/layout/AppSidebar.vue'
 import { useEventStore } from '@/stores/eventStore'
+import { useEventWindowStore } from '@/stores/eventWindowStore'
 import { useToday } from '@/composables/useToday'
 import {
   isTaskPending,
@@ -33,7 +33,6 @@ import {
   dayEventSortKey,
 } from '@/services/eventCalendarMapper'
 import type { TimeEvent } from '@/types/event'
-import type { CreateEventInput, UpdateEventInput } from '@/services/eventTypes'
 
 const props = defineProps<{
   /**
@@ -117,18 +116,17 @@ const statChips = computed(() => [
 ])
 
 /* ==============================================================================
- *  Dashboard 级别 CRUD UI（今日事件的编辑 / 删除 + 一份 EventForm 弹窗）
- *  与 Calendar 内部的 CRUD 操作同一个 eventStore → Pinia 响应式会双向同步：
- *    - 在 Dashboard 改了今日事件 → Calendar indicator + 选中日期列表立刻刷新
- *    - 在 Calendar 改了今日事件 → Dashboard 今日事件立刻刷新
+ *  Dashboard 级别 CRUD UI（今日事件 / 固定事件 / 总览的编辑、删除）
+ *  新增 / 编辑统一走全局事件窗口（App.vue 唯一持有 EventForm）：
+ *    - 点事件编辑 → eventWindow.openEdit(id)，由全局窗口按 id 实时解析最新事件
+ *    - 删除仍走本页 BaseConfirmDialog（与列表行内删除一致的既有流程）
+ *  与 Calendar 内部 CRUD 同用一个 eventStore → Pinia 响应式双向同步保持。
  * ============================================================================== */
-const dbFormVisible = ref(false)
-const dbEditingEvent = ref<TimeEvent | null>(null)
 const dbDeleteTarget = ref<TimeEvent | null>(null)
+const eventWindow = useEventWindowStore()
 
 function openDbEdit(e: TimeEvent) {
-  dbEditingEvent.value = e
-  dbFormVisible.value = true
+  eventWindow.openEdit(e.id)
 }
 function requestDbDelete(e: TimeEvent) {
   dbDeleteTarget.value = e
@@ -142,26 +140,8 @@ async function confirmDbDelete() {
   dbDeleteTarget.value = null
   try {
     await eventStore.remove(e.id)
-    if (dbEditingEvent.value?.id === e.id) dbEditingEvent.value = null
   } catch (_err) {
     // 忽略，eventStore.error 已持有文案
-  }
-}
-async function handleDbSubmitCreate(input: CreateEventInput) {
-  try {
-    await eventStore.create(input)
-    dbFormVisible.value = false
-  } catch (_err) {
-    /* 同上 */
-  }
-}
-async function handleDbSubmitUpdate(id: string, patch: UpdateEventInput) {
-  try {
-    await eventStore.update(id, patch)
-    dbFormVisible.value = false
-    dbEditingEvent.value = null
-  } catch (_err) {
-    /* 同上 */
   }
 }
 
@@ -229,15 +209,7 @@ onMounted(() => {
     </section>
   </div>
 
-  <!-- ===== 全局 CRUD 弹窗：无论 embedded 与否，都挂一份 fixed 级别弹窗 ===== -->
-  <EventForm
-    v-model:visible="dbFormVisible"
-    :default-date="todayKey"
-    :editing-event="dbEditingEvent"
-    @submit-create="handleDbSubmitCreate"
-    @submit-update="handleDbSubmitUpdate"
-    @delete="(id) => { const e = eventStore.events.find(x => x.id === id); if (e) requestDbDelete(e) }"
-  />
+  <!-- ===== 新增/编辑统一走全局事件窗口（App.vue 持有）；仅保留删除确认层 ===== -->
   <BaseConfirmDialog
     :visible="!!dbDeleteTarget"
     :event-title="dbDeleteTarget?.title ?? ''"

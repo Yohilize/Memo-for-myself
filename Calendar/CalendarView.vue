@@ -7,8 +7,8 @@ import { useRouter } from 'vue-router'
 import BaseCard from '@/components/base/BaseCard.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
 import BaseConfirmDialog from '@/components/base/BaseConfirmDialog.vue'
-import EventForm from '@calendar/EventForm.vue'
 import { useEventStore } from '@/stores/eventStore'
+import { useEventWindowStore } from '@/stores/eventWindowStore'
 import {
   mapEventsToDateIndicators,
   filterEventsForDay,
@@ -16,7 +16,6 @@ import {
   dayEventSortKey,
 } from '@/services/eventCalendarMapper'
 import type { TimeEvent, DurationEvent } from '@/types/event'
-import type { CreateEventInput, UpdateEventInput } from '@/services/eventTypes'
 import { STORAGE_KEYS } from '@/services/storageKeys'
 import { DEFAULT_DURATION_COLOR } from '@/services/eventService'
 
@@ -430,46 +429,25 @@ const durConfirmTitle = computed(() => {
 })
 
 /* ==============================================================================
- *  CRUD UI：EventForm（新增 / 编辑） + 编辑 / 删除入口
+ *  事件窗口：统一走全局 eventWindow（App.vue 唯一持有 EventForm），本文不再渲染 EventForm。
+ *  新增 / 编辑 / 删除逻辑统一由全局窗口承担；Pinia 响应式自动刷新 indicator + 各列表。
  * ============================================================================== */
-const formVisible = ref(false)
-const editingEvent = ref<TimeEvent | null>(null)
 const deleteTarget = ref<TimeEvent | null>(null)
+const eventWindow = useEventWindowStore()
 
-/** 点右下角「+」：新增，默认日期 = Calendar 选中日期 */
+/** 点右上角 / 右下角「+」：新增，默认类型=行程、默认日期 = Calendar 选中日期 */
 function openCreateForm() {
-  editingEvent.value = null
-  formVisible.value = true
+  eventWindow.openCreate({ defaultType: 'calendar', defaultDate: selectedDateKey.value })
 }
-/** 点某事件「编辑」：把该事件作为 editingEvent 传入 */
+/** 点某事件「编辑」：嵌入模式上抛宿主；独立页用 eventId 交给全局窗口（实时解析最新事件） */
 function openEditForm(e: TimeEvent) {
   if (embedded.value) {
     emit('edit-event', e)
     return
   }
-  editingEvent.value = e
-  formVisible.value = true
+  eventWindow.openEdit(e.id)
 }
-/** 提交新增：走 Store，Pinia 响应式会自动刷新 indicator + 选中日期列表 + Dashboard 今日事件 */
-async function handleSubmitCreate(input: CreateEventInput) {
-  try {
-    await eventStore.create(input)
-    formVisible.value = false
-  } catch (err) {
-    // 仅吞掉异常以免 UI 卡住；错误文案已经存在 eventStore.error 中
-  }
-}
-/** 提交编辑：走 Store.update（id 不丢） */
-async function handleSubmitUpdate(id: string, patch: UpdateEventInput) {
-  try {
-    await eventStore.update(id, patch)
-    formVisible.value = false
-    editingEvent.value = null
-  } catch (_err) {
-    // 同上
-  }
-}
-/** 删除：先打开 MYMEMO 玻璃确认层，确认后才触发 Store.remove。 */
+/** 删除：嵌入模式上抛宿主；独立页先打开 MYMEMO 玻璃确认层，确认后才触发 Store.remove。 */
 function requestDelete(e: TimeEvent) {
   if (embedded.value) {
     emit('delete-event', e)
@@ -486,9 +464,8 @@ async function confirmDelete() {
   deleteTarget.value = null
   try {
     await eventStore.remove(e.id)
-    if (editingEvent.value?.id === e.id) editingEvent.value = null
   } catch (_err) {
-    // 同上
+    // 仅吞掉异常以免 UI 卡住；错误文案已经存在 eventStore.error 中
   }
 }
 
@@ -842,16 +819,7 @@ onMounted(() => {
     </div>
   </div>
 
-  <!-- ===== 全局 CRUD 表单弹窗（新增/编辑共用；fixed 覆盖全屏，不受 Calendar 容器裁剪影响）===== -->
-  <EventForm
-    v-model:visible="formVisible"
-    :default-date="selectedDateKey"
-    :editing-event="editingEvent"
-    :size-variant="embedded ? 'large' : 'standard'"
-    @submit-create="handleSubmitCreate"
-    @submit-update="handleSubmitUpdate"
-    @delete="(id) => { const e = eventStore.events.find(x => x.id === id); if (e) requestDelete(e) }"
-  />
+  <!-- ===== 新增/编辑统一走全局事件窗口（App.vue 持有），本组件不再渲染 EventForm ===== -->
   <BaseConfirmDialog
     :visible="!!deleteTarget"
     :event-title="deleteTarget?.title ?? ''"

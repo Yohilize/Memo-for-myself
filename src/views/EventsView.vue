@@ -16,12 +16,11 @@ import AppSidebar from '@/components/layout/AppSidebar.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
 import BaseBadge from '@/components/base/BaseBadge.vue'
 import BaseConfirmDialog from '@/components/base/BaseConfirmDialog.vue'
-import EventForm from '@calendar/EventForm.vue'
 import { useEventStore } from '@/stores/eventStore'
+import { useEventWindowStore } from '@/stores/eventWindowStore'
 import { useToday } from '@/composables/useToday'
 import { deriveEventDisplayStatus } from '@/services/eventService'
 import type { TimeEvent } from '@/types/event'
-import type { CreateEventInput, UpdateEventInput } from '@/services/eventTypes'
 
 const eventStore = useEventStore()
 const { todayKey } = useToday()
@@ -153,19 +152,16 @@ const timelineStats = computed(() => {
 })
 
 /* ==============================================================================
- *  CRUD UI：新增 / 编辑 / 删除（复用 EventForm 弹窗 + BaseConfirmDialog）
+ *  事件窗口：新增 / 编辑统一走全局 eventWindow（App.vue 唯一持有 EventForm）；删除保持本页确认层。
  * ============================================================================== */
-const formVisible = ref(false)
-const editingEvent = ref<TimeEvent | null>(null)
 const deleteTarget = ref<TimeEvent | null>(null)
+const eventWindow = useEventWindowStore()
 
 function openNew() {
-  editingEvent.value = null
-  formVisible.value = true
+  eventWindow.openCreate({ defaultType: 'calendar', defaultDate: dayjs().format('YYYY-MM-DD') })
 }
 function openEdit(e: TimeEvent) {
-  editingEvent.value = e
-  formVisible.value = true
+  eventWindow.openEdit(e.id)
 }
 function requestDelete(e: TimeEvent) {
   deleteTarget.value = e
@@ -179,25 +175,6 @@ async function confirmDelete() {
   deleteTarget.value = null
   try {
     await eventStore.remove(e.id)
-    if (editingEvent.value?.id === e.id) editingEvent.value = null
-  } catch (_err) {
-    /* eventStore.error 已持有 */
-  }
-}
-async function handleSubmitCreate(input: CreateEventInput) {
-  try {
-    // idea 也可经此创建（走同一数据链路），但时间线会过滤掉 idea，因此创建后归入 /ideas
-    await eventStore.create(input)
-    formVisible.value = false
-  } catch (_err) {
-    /* eventStore.error 已持有 */
-  }
-}
-async function handleSubmitUpdate(id: string, patch: UpdateEventInput) {
-  try {
-    await eventStore.update(id, patch)
-    formVisible.value = false
-    editingEvent.value = null
   } catch (_err) {
     /* eventStore.error 已持有 */
   }
@@ -297,18 +274,7 @@ onMounted(() => {
     </section>
   </div>
 
-  <!-- ===== CRUD 弹窗 ===== -->
-  <EventForm
-    v-model:visible="formVisible"
-    default-type="calendar"
-    :editing-event="editingEvent"
-    @submit-create="handleSubmitCreate"
-    @submit-update="handleSubmitUpdate"
-    @delete="(id) => {
-      const e = eventStore.events.find((x) => x.id === id)
-      if (e) requestDelete(e)
-    }"
-  />
+  <!-- ===== 新增/编辑统一走全局事件窗口（App.vue 持有）；仅保留删除确认层 ===== -->
   <BaseConfirmDialog
     :visible="!!deleteTarget"
     :event-title="deleteTarget?.title ?? ''"

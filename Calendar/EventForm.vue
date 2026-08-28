@@ -113,7 +113,7 @@ const errorMsg = computed(() => {
 /* ==============================================================================
  * 弹窗打开时初始化字段
  *  - 新增：根据 defaultDate + type 填合理默认值
- *  - 编辑：回填当前事件原始值（type 锁定不可改）
+ *  - 编辑：回填当前事件原始值（类型可再切换，切换后按新类型初始化对应字段）
  * ============================================================================== */
 watch(
   () => props.visible,
@@ -154,30 +154,49 @@ watch(
       }
     } else {
       // —— 新增模式：用 defaultDate 作为所有日期类字段的锚点；defaultType 作为初始类型 —— //
-      const d = props.defaultDate || dayjs().format('YYYY-MM-DD')
-      form.type = props.defaultType ?? 'calendar'
       form.title = ''
       form.notes = ''
-      // 新建行程默认「无状态」；deadline / duration 才默认 pending
-      form.status = form.type === 'calendar' ? 'stateless' : 'pending'
-      form.event_date = d
-      // 「无时间要求」默认开启：仅需日期，无需具体时间
-      form.all_day = true
-      form.event_time = '09:00'
-      form.duration_min = null
-      form.due_date = d
-      form.due_time = ''
-      form.priority = 'medium'
-      // duration：开始日期默认今天；结束日期默认留空（未知结束的开放区块）
-      form.start_date = dayjs().format('YYYY-MM-DD')
-      form.end_date = ''
-      form.dur_color = DEFAULT_DURATION_COLOR
-      form.content = ''
-      form.archived = false
+      applyTypeDefaults(props.defaultType ?? 'calendar', props.defaultDate)
     }
   },
   { immediate: true },
 )
+
+/* ==============================================================================
+ * 类型切换字段初始化
+ *  - 新增模式：清零后按类型填默认值（date 锚点取 defaultDate 或今天）
+ *  - 编辑模式切换类型：为新类型填默认字段（保留标题 / 备注），status 回退到该类型默认值
+ * ============================================================================== */
+function applyTypeDefaults(t: EventType, dateAnchor?: string): void {
+  const d = dateAnchor || dayjs().format('YYYY-MM-DD')
+  form.type = t
+  // 新建行程默认「无状态」；deadline / duration 才默认 pending
+  form.status = t === 'calendar' ? 'stateless' : 'pending'
+  form.event_date = d
+  // 「无时间要求」默认开启：仅需日期，无需具体时间
+  form.all_day = true
+  form.event_time = '09:00'
+  form.duration_min = null
+  form.due_date = d
+  form.due_time = ''
+  form.priority = 'medium'
+  // duration：开始日期默认今天；结束日期默认留空（未知结束的开放区块）
+  form.start_date = dayjs().format('YYYY-MM-DD')
+  form.end_date = ''
+  form.dur_color = DEFAULT_DURATION_COLOR
+  form.content = ''
+  form.archived = false
+}
+
+/** 类型 Tab 点击：新增模式下仅切换类型；编辑模式下切换类型时为新类型初始化字段（保留标题 / 备注）。 */
+function onTypeTabClick(t: EventType): void {
+  if (form.type === t) return
+  if (isEdit.value) {
+    applyTypeDefaults(t)
+  } else {
+    form.type = t
+  }
+}
 
 /* ==============================================================================
  * 提交：生成 CreateEventInput 或 UpdateEventInput
@@ -186,16 +205,17 @@ function handleSubmit() {
   if (errorMsg.value) return
 
   if (isEdit.value) {
-    // —— 编辑：生成 patch（type 不包含，不变更）—— //
+    // —— 编辑：允许切换事件类型，按【当前 form.type】生成 patch（携带 type + 新类型字段）—— //
     const e = event.value
     if (!e) return
     const patch: UpdateEventInput = {
+      type: form.type, // 编辑时切换到的新类型
       title: form.title.trim(),
       notes: form.notes,
       // idea 不参与任务状态（沿用归档机制），不写入 status；其余类型保留状态编辑能力
-      ...(e.type !== 'idea' ? { status: form.status } : {}),
+      ...(form.type !== 'idea' ? { status: form.status } : {}),
     }
-    switch (e.type) {
+    switch (form.type) {
       case 'calendar':
         patch.event_date = form.event_date
         patch.all_day = form.all_day
@@ -372,7 +392,7 @@ watch(
             <BaseInput v-model="form.title" placeholder="要做什么..." />
           </label>
 
-          <!-- 类型（新增时可切换，编辑时锁定为不可改） -->
+          <!-- 类型（新增可切换；编辑同样可切换，切换后按新类型初始化对应字段） -->
           <div class="ef-row">
             <span class="ef-label">类型</span>
             <div class="ef-type-tabs">
@@ -380,10 +400,9 @@ watch(
                 v-for="t in (['calendar', 'deadline', 'duration', 'idea'] as EventType[])"
                 :key="t"
                 class="ef-type-tab"
-                :class="{ active: form.type === t, disabled: isEdit }"
-                :disabled="isEdit"
+                :class="{ active: form.type === t }"
                 :style="form.type === t ? { '--tc': typeColors[t] } : undefined"
-                @click="!isEdit && (form.type = t)"
+                @click="onTypeTabClick(t)"
               >
                 {{ typeLabels[t] }}
               </button>

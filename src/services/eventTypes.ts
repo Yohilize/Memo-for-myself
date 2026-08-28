@@ -4,6 +4,7 @@ import type {
   DurationEvent,
   IdeaEvent,
   EventStatus,
+  EventType,
   Priority,
 } from '@/types/event'
 
@@ -62,8 +63,14 @@ export type CreateEventInput =
   | CreateDurationInput
   | CreateIdeaInput
 
-/** 更新输入：所有字段可选，但 type 不可更改 */
-export type UpdateEventInput = Partial<Omit<CalendarEvent, 'id' | 'type'>> &
+/**
+ * 更新输入：所有字段可选。
+ * type 单独放宽为可选的 EventType，用于统一事件窗口中「编辑时切换事件类型」；切换后以新类型字段生成 patch，
+ * 旧类型遗留字段因可辨识联合（Discriminated Union）按新 type 解析而被忽略。
+ */
+export type UpdateEventInput = {
+  type?: EventType
+} & Partial<Omit<CalendarEvent, 'id' | 'type'>> &
   Partial<Omit<DeadlineEvent, 'id' | 'type'>> &
   Partial<Omit<DurationEvent, 'id' | 'type'>> &
   Partial<Omit<IdeaEvent, 'id' | 'type'>>

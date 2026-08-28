@@ -22,10 +22,10 @@ import BaseCard from '@/components/base/BaseCard.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
 import BaseBadge from '@/components/base/BaseBadge.vue'
 import BaseConfirmDialog from '@/components/base/BaseConfirmDialog.vue'
-import EventForm from '@calendar/EventForm.vue'
 import { useEventStore } from '@/stores/eventStore'
+import { useEventWindowStore } from '@/stores/eventWindowStore'
 import type { IdeaEvent } from '@/types/event'
-import type { CreateEventInput, UpdateEventInput } from '@/services/eventTypes'
+import type { UpdateEventInput } from '@/services/eventTypes'
 
 const eventStore = useEventStore()
 
@@ -47,19 +47,16 @@ const ideaStats = computed(() => ({
 }))
 
 /* ==============================================================================
- *  CRUD UI：新增 / 编辑 / 删除 / 归档  （复用 EventForm 弹窗 + BaseConfirmDialog）
+ *  事件窗口：新增 / 编辑统一走全局 eventWindow（App.vue 唯一持有 EventForm）；删除 / 归档保持本页逻辑。
  * ============================================================================== */
-const formVisible = ref(false)
-const editingEvent = ref<IdeaEvent | null>(null)
 const deleteTarget = ref<IdeaEvent | null>(null)
+const eventWindow = useEventWindowStore()
 
 function openNew() {
-  editingEvent.value = null
-  formVisible.value = true
+  eventWindow.openCreate({ defaultType: 'idea' })
 }
 function openEdit(e: IdeaEvent) {
-  editingEvent.value = e
-  formVisible.value = true
+  eventWindow.openEdit(e.id)
 }
 function requestDelete(e: IdeaEvent) {
   deleteTarget.value = e
@@ -73,7 +70,6 @@ async function confirmDelete() {
   deleteTarget.value = null
   try {
     await eventStore.remove(e.id)
-    if (editingEvent.value?.id === e.id) editingEvent.value = null
   } catch (_err) {
     /* eventStore.error 已持有 */
   }
@@ -81,26 +77,6 @@ async function confirmDelete() {
 async function toggleArchive(e: IdeaEvent) {
   try {
     await eventStore.update(e.id, { archived: !e.archived } as UpdateEventInput)
-  } catch (_err) {
-    /* eventStore.error 已持有 */
-  }
-}
-
-async function handleSubmitCreate(input: CreateEventInput) {
-  try {
-    // 确保类型是 idea
-    if (input.type !== 'idea') return
-    await eventStore.create(input)
-    formVisible.value = false
-  } catch (_err) {
-    /* eventStore.error 已持有 */
-  }
-}
-async function handleSubmitUpdate(id: string, patch: UpdateEventInput) {
-  try {
-    await eventStore.update(id, patch)
-    formVisible.value = false
-    editingEvent.value = null
   } catch (_err) {
     /* eventStore.error 已持有 */
   }
@@ -224,18 +200,7 @@ onMounted(() => {
     </section>
   </div>
 
-  <!-- ===== CRUD 弹窗 ===== -->
-  <EventForm
-    v-model:visible="formVisible"
-    default-type="idea"
-    :editing-event="editingEvent"
-    @submit-create="handleSubmitCreate"
-    @submit-update="handleSubmitUpdate"
-    @delete="(id) => {
-      const e = eventStore.events.find((x) => x.id === id) as IdeaEvent | undefined
-      if (e) requestDelete(e)
-    }"
-  />
+  <!-- ===== 新增/编辑统一走全局事件窗口（App.vue 持有）；仅保留删除确认层 ===== -->
   <BaseConfirmDialog
     :visible="!!deleteTarget"
     :event-title="deleteTarget?.title ?? ''"
