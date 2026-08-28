@@ -22,6 +22,7 @@ import BaseCard from '@/components/base/BaseCard.vue'
 import BaseButton from '@/components/base/BaseButton.vue'
 import BaseBadge from '@/components/base/BaseBadge.vue'
 import BaseConfirmDialog from '@/components/base/BaseConfirmDialog.vue'
+import IdeaPreviewWindow from '@/components/ideas/IdeaPreviewWindow.vue'
 import { useEventStore } from '@/stores/eventStore'
 import { useEventWindowStore } from '@/stores/eventWindowStore'
 import type { IdeaEvent } from '@/types/event'
@@ -52,11 +53,27 @@ const ideaStats = computed(() => ({
 const deleteTarget = ref<IdeaEvent | null>(null)
 const eventWindow = useEventWindowStore()
 
+// —— 灵感「预览窗口」：点击卡片打开（纯查看，不走 EventForm 编辑）——
+const previewIdea = ref<IdeaEvent | null>(null)
+function openPreview(e: IdeaEvent) {
+  previewIdea.value = e
+}
+function closePreview() {
+  previewIdea.value = null
+}
+
 function openNew() {
   eventWindow.openCreate({ defaultType: 'idea' })
 }
 function openEdit(e: IdeaEvent) {
   eventWindow.openEdit(e.id)
+}
+// —— 从预览窗口点击「编辑」：关闭预览，并按 eventId 打开全局 EventForm 编辑真实数据 —— //
+function editFromPreview() {
+  const e = previewIdea.value
+  if (!e) return
+  previewIdea.value = null
+  openEdit(e)
 }
 function requestDelete(e: IdeaEvent) {
   deleteTarget.value = e
@@ -145,6 +162,7 @@ onMounted(() => {
             padding="md"
             class="idea-card"
             :class="{ archived: idea.archived }"
+            @click="openPreview(idea)"
           >
             <!-- 卡片头：标题 + 归档标记 + 操作 -->
             <div class="idea-card-head">
@@ -207,6 +225,9 @@ onMounted(() => {
     @cancel="cancelDelete"
     @confirm="confirmDelete"
   />
+
+  <!-- ===== 灵感预览窗口：点击卡片打开（纯查看、可拖动）===== -->
+  <IdeaPreviewWindow :idea="previewIdea" @close="closePreview" @edit="editFromPreview" />
 </template>
 
 <style scoped>
