@@ -191,6 +191,44 @@ function selectPinnedEvent(event: TimeEvent): void {
   pinnedPickerVisible.value = false
 }
 
+/**
+ * 固定事件锚点日期（date-only）：与 pinnedDateText 字段语义保持一致，
+ * 用于「未来 3/7 天」时间范围筛选，仅做前端判断，不改动事件数据。
+ */
+function pinnedAnchorDate(event: TimeEvent): dayjs.Dayjs | null {
+  switch (event.type) {
+    case 'calendar':
+      return dayjs(event.event_date)
+    case 'deadline':
+      return dayjs(event.due_date)
+    case 'duration':
+      return dayjs(event.start_date)
+    case 'idea':
+      return dayjs(event.created_at)
+  }
+}
+
+/** 固定事件视图时间范围筛选：'all'（全部）/ '3'（3天内）/ '7'（7天内）。 */
+const pinnedRange = ref<'all' | '3' | '7'>('all')
+const pinRangeOptions = [
+  { value: 'all' as const, label: '全部' },
+  { value: '3' as const, label: '3天内' },
+  { value: '7' as const, label: '7天内' },
+]
+
+/** 按所选时间范围对固定事件做可视化筛选：锚点日期落在「今天 → 今天+N天」区间内则保留。 */
+const filteredPinnedEvents = computed<TimeEvent[]>(() => {
+  if (pinnedRange.value === 'all') return pinnedEvents.value
+  const ndays = Number(pinnedRange.value)
+  const today = dayjs(props.todayKey).startOf('day')
+  return pinnedEvents.value.filter((e) => {
+    const anchor = pinnedAnchorDate(e)
+    if (!anchor || !anchor.isValid()) return false
+    const diff = anchor.startOf('day').diff(today, 'day')
+    return diff >= 0 && diff <= ndays
+  })
+})
+
 const {
   layout,
   isEditMode,
@@ -374,6 +412,18 @@ function onDragStart(widgetId: DashboardWidgetId, event: PointerEvent): void {
         <div class="db-widget-title-row">
           <h2 id="dashboard-pinned-event-title" class="db-widget-title">固定事件</h2>
           <span v-if="pinnedEvents.length" class="db-pinned-mark" aria-label="已固定">固定</span>
+          <div class="db-pinned-range" role="group" aria-label="时间范围筛选">
+            <button
+              v-for="opt in pinRangeOptions"
+              :key="opt.value"
+              type="button"
+              class="db-pinned-range-seg"
+              :class="{ active: pinnedRange === opt.value }"
+              @click="pinnedRange = opt.value"
+            >
+              {{ opt.label }}
+            </button>
+          </div>
         </div>
         <button
           v-if="isEditMode"
@@ -388,23 +438,22 @@ function onDragStart(widgetId: DashboardWidgetId, event: PointerEvent): void {
       </header>
 
       <div class="db-pinned-body">
-        <template v-for="pinnedEvent in pinnedEvents" :key="pinnedEvent.id">
-          <div class="db-pinned-card">
+        <template v-for="pinnedEvent in filteredPinnedEvents" :key="pinnedEvent.id">
+          <div
+            class="db-pinned-card"
+            :title="`${pinnedEvent.title} · 点击编辑`"
+            @click="emit('edit-event', pinnedEvent)"
+          >
             <!-- 左列：事件标题 + 取消固定（一一对应，位于本卡内部、标题下方） -->
             <div class="db-pinned-left">
-              <button
-                class="db-pinned-titlebtn"
-                type="button"
-                :title="`${pinnedEvent.title} · 点击编辑`"
-                @click="emit('edit-event', pinnedEvent)"
-              >
+              <span class="db-pinned-titlebtn">
                 <span class="db-pinned-title">{{ pinnedEvent.title }}</span>
-              </button>
+              </span>
               <button
                 class="db-pinned-unpin"
                 type="button"
                 aria-label="取消固定"
-                @click="unpinEvent(pinnedEvent.id)"
+                @click.stop="unpinEvent(pinnedEvent.id)"
               >
                 取消固定
               </button>
@@ -430,6 +479,7 @@ function onDragStart(widgetId: DashboardWidgetId, event: PointerEvent): void {
                     v-if="pinnedEvent.type !== 'idea'"
                     :event="pinnedEvent"
                     class="db-pinned-toggle"
+                    @click.stop
                   />
                 </div>
                 <div class="db-pinned-time">
@@ -447,7 +497,9 @@ function onDragStart(widgetId: DashboardWidgetId, event: PointerEvent): void {
           </div>
         </template>
 
-        <div v-if="pinnedEvents.length === 0" class="db-pinned-empty">暂无固定事件</div>
+        <div v-if="filteredPinnedEvents.length === 0" class="db-pinned-empty">
+          {{ pinnedEvents.length === 0 ? '暂无固定事件' : '所选范围内暂无固定事件' }}
+        </div>
 
         <!-- 统一操作区：所有卡片下方，新增固定事件入口（不属于任何单张卡片） -->
         <div class="db-pinned-footer">
@@ -927,6 +979,37 @@ function onDragStart(widgetId: DashboardWidgetId, event: PointerEvent): void {
   gap: 8px;
   padding: 4px 12px 12px;
 }
+/* —— 时间范围筛选（玻璃胶囊分段控件，保持 Dashboard 统一视觉）—— */
+.db-pinned-range {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 2px;
+  padding: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--color-accent-2) 8%, transparent);
+  border: 1px solid var(--surface-border);
+}
+.db-pinned-range-seg {
+  padding: 3px 8px;
+  font-size: 10px;
+  line-height: 1.2;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  transition: all var(--duration-fast) var(--ease-out);
+  white-space: nowrap;
+}
+.db-pinned-range-seg:hover {
+  color: var(--color-text-secondary);
+}
+.db-pinned-range-seg.active {
+  background: color-mix(in srgb, var(--color-primary) 14%, transparent);
+  color: var(--color-text-primary);
+  font-weight: var(--font-semibold);
+}
 /* —— 左右结构卡片：左列宽由内容自适应，分割线随其右端定位（不写死比例）—— */
 .db-pinned-card {
   display: flex;
@@ -940,6 +1023,16 @@ function onDragStart(widgetId: DashboardWidgetId, event: PointerEvent): void {
   border-radius: calc(var(--surface-radius) - 2px);
   background: color-mix(in srgb, var(--surface-bg) 82%, transparent);
   box-shadow: 0 2px 10px color-mix(in srgb, var(--color-primary) 6%, transparent);
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--ease-out),
+    background var(--duration-fast) var(--ease-out),
+    box-shadow var(--duration-fast) var(--ease-out);
+}
+.db-pinned-card:hover {
+  border-color: color-mix(in srgb, var(--color-primary) 30%, var(--surface-border));
+  background: color-mix(in srgb, var(--surface-bg) 92%, transparent);
+  box-shadow: 0 3px 14px color-mix(in srgb, var(--color-primary) 10%, transparent);
 }
 .db-pinned-left {
   flex: 0 1 auto;
@@ -954,14 +1047,8 @@ function onDragStart(widgetId: DashboardWidgetId, event: PointerEvent): void {
 .db-pinned-titlebtn {
   max-width: 100%;
   padding: 0;
-  border: 0;
-  background: transparent;
   color: inherit;
   text-align: left;
-  cursor: pointer;
-}
-.db-pinned-titlebtn:hover .db-pinned-title {
-  color: var(--color-primary);
 }
 .db-pinned-title {
   display: block;
