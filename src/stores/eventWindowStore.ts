@@ -25,8 +25,10 @@ export const useEventWindowStore = defineStore('eventWindow', () => {
   const defaultType = ref<EventType>('calendar')
   const defaultDate = ref<string>('')
 
-  // —— 编辑上下文：仅存 eventId，真实事件按 id 从 Store 实时解析 —— //
+  // —— 编辑上下文（独立 EventEditPanel）：仅存 eventId，真实事件按 id 从 Store 实时解析 —— //
   const eventId = ref<string | null>(null)
+  const editVisible = ref(false)
+  const editEventId = ref<string | null>(null)
 
   /** 编辑模式下的真实事件：按 eventId 从最新 Store 事件解析（始终拿到最新 Event）。 */
   const editingEvent = computed<TimeEvent | null>(() => {
@@ -40,19 +42,35 @@ export const useEventWindowStore = defineStore('eventWindow', () => {
   function openCreate(opts: { defaultType?: EventType; defaultDate?: string } = {}): void {
     mode.value = 'create'
     eventId.value = null
+    editVisible.value = false
+    editEventId.value = null
     deleteTarget.value = null
     defaultType.value = opts.defaultType ?? 'calendar'
     defaultDate.value = opts.defaultDate ?? ''
     visible.value = true
   }
 
+  /**
+   * 打开独立「事件编辑面板」（EventEditPanel），而非 EventForm。
+   * 所有页面「点击事件进入编辑」都经此统一入口，只传 eventId；
+   * 新增事件（openCreate）仍走原 EventForm，不受影响。
+   */
   function openEdit(id: string): void {
     mode.value = 'edit'
     eventId.value = id
+    editEventId.value = id
     deleteTarget.value = null
     defaultType.value = 'calendar'
     defaultDate.value = ''
-    visible.value = true
+    visible.value = false
+    editVisible.value = true
+  }
+
+  /** 关闭编辑面板（不影响新增事件窗口状态）。 */
+  function closeEdit(): void {
+    editVisible.value = false
+    editEventId.value = null
+    eventId.value = null
   }
 
   function close(): void {
@@ -77,6 +95,18 @@ export const useEventWindowStore = defineStore('eventWindow', () => {
       visible.value = false
     } catch (_err) {
       /* 同上 */
+    }
+  }
+
+  /** 提交编辑面板保存：写入最新数据，成功才关闭面板。 */
+  async function submitEdit(id: string, patch: UpdateEventInput): Promise<void> {
+    try {
+      await eventStore.update(id, patch)
+      editVisible.value = false
+      editEventId.value = null
+      eventId.value = null
+    } catch (_err) {
+      /* 同上，面板保持打开 */
     }
   }
 
@@ -105,12 +135,16 @@ export const useEventWindowStore = defineStore('eventWindow', () => {
     defaultDate,
     eventId,
     editingEvent,
+    editVisible,
+    editEventId,
     deleteTarget,
     openCreate,
     openEdit,
     close,
+    closeEdit,
     submitCreate,
     submitUpdate,
+    submitEdit,
     requestDelete,
     cancelDelete,
     confirmDelete,
