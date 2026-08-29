@@ -3,6 +3,7 @@ import dayjs from 'dayjs'
 import { computed, onMounted, ref } from 'vue'
 import { RouterLink } from 'vue-router'
 import BaseBadge from '@/components/base/BaseBadge.vue'
+import ToggleCompleteButton from '@/components/base/ToggleCompleteButton.vue'
 import CalendarView from '@calendar/CalendarView.vue'
 import ComponentPickerModal from './ComponentPickerModal.vue'
 import ConfirmDialog from './ConfirmDialog.vue'
@@ -35,7 +36,7 @@ const emit = defineEmits<{
 
 const widgetAreaRef = ref<HTMLElement | null>(null)
 const pinnedPickerVisible = ref(false)
-const { pinnedEvent, pinEvent, unpinEvent } = useDashboardPinnedEvent()
+const { pinnedEvents, pinEvent, unpinEvent } = useDashboardPinnedEvent()
 const { todayKey } = useToday()
 
 /** 置顶事件显示状态：非 idea 用「事件数据 + 今天」推导（无状态/已完成/已取消照常显示）。 */
@@ -372,7 +373,7 @@ function onDragStart(widgetId: DashboardWidgetId, event: PointerEvent): void {
       <header class="db-widget-head">
         <div class="db-widget-title-row">
           <h2 id="dashboard-pinned-event-title" class="db-widget-title">固定事件</h2>
-          <span v-if="pinnedEvent" class="db-pinned-mark" aria-label="已固定">固定</span>
+          <span v-if="pinnedEvents.length" class="db-pinned-mark" aria-label="已固定">固定</span>
         </div>
         <button
           v-if="isEditMode"
@@ -387,68 +388,76 @@ function onDragStart(widgetId: DashboardWidgetId, event: PointerEvent): void {
       </header>
 
       <div class="db-pinned-body">
-        <div class="db-pinned-card">
-          <!-- 左列：事件标题 + 选择事件/取消固定。列宽由内容自适应，分割线随其右端定位 -->
-          <div class="db-pinned-left">
-            <button
-              v-if="pinnedEvent"
-              class="db-pinned-titlebtn"
-              type="button"
-              :title="`${pinnedEvent.title} · 点击编辑`"
-              @click="emit('edit-event', pinnedEvent)"
-            >
-              <span class="db-pinned-title">{{ pinnedEvent.title }}</span>
-            </button>
-            <div v-else class="db-pinned-empty">暂无固定事件</div>
-            <div class="db-pinned-controls">
+        <template v-for="pinnedEvent in pinnedEvents" :key="pinnedEvent.id">
+          <div class="db-pinned-card">
+            <!-- 左列：事件标题 + 取消固定（一一对应，位于本卡内部、标题下方） -->
+            <div class="db-pinned-left">
               <button
-                class="db-pinned-select"
+                class="db-pinned-titlebtn"
                 type="button"
-                @click="pinnedPickerVisible = true"
+                :title="`${pinnedEvent.title} · 点击编辑`"
+                @click="emit('edit-event', pinnedEvent)"
               >
-                选择事件
+                <span class="db-pinned-title">{{ pinnedEvent.title }}</span>
               </button>
               <button
-                v-if="pinnedEvent"
                 class="db-pinned-unpin"
                 type="button"
-                @click="unpinEvent"
+                aria-label="取消固定"
+                @click="unpinEvent(pinnedEvent.id)"
               >
                 取消固定
               </button>
             </div>
-          </div>
 
-          <!-- 分割线：位置由左列内容宽度自适应，不写死固定比例 -->
-          <div class="db-pinned-divider" aria-hidden="true"></div>
+            <!-- 分割线：位置由左列内容宽度自适应，不写死固定比例 -->
+            <div class="db-pinned-divider" aria-hidden="true"></div>
 
-          <!-- 右列：固定事件具体内容（按事件类型显示合适信息） -->
-          <div class="db-pinned-right">
-            <div v-if="pinnedEvent" class="db-pinned-right-content">
-              <div class="db-pinned-type-row">
-                <BaseBadge :color="props.typeColorByType[pinnedEvent.type] ?? 'var(--color-text-tertiary)'">
-                  {{ props.typeLabelByType[pinnedEvent.type] ?? pinnedEvent.type }}
-                </BaseBadge>
-                <span
-                  v-if="pinnedEvent.type !== 'idea'"
-                  class="db-pinned-status"
-                >
-                  {{ statusLabelByStatus[pinnedDisplayStatus(pinnedEvent)] ?? pinnedDisplayStatus(pinnedEvent) }}
-                </span>
-              </div>
-              <div class="db-pinned-time">
-                {{ pinnedDateText(pinnedEvent) }} · {{ pinnedTimeText(pinnedEvent) }}
-              </div>
-              <div v-if="pinnedEvent.type === 'deadline'" class="db-pinned-extra">
-                优先级：{{ priorityLabelByPriority[pinnedEvent.priority] ?? pinnedEvent.priority }}
-              </div>
-              <p v-if="pinnedBodyText(pinnedEvent)" class="db-pinned-desc">{{ pinnedBodyText(pinnedEvent) }}</p>
-              <div v-if="pinnedEvent.tags.length" class="db-pinned-tags">
-                <span v-for="tag in pinnedEvent.tags" :key="tag" class="db-pinned-tag">#{{ tag }}</span>
+            <!-- 右列：固定事件具体内容（按事件类型显示合适信息） -->
+            <div class="db-pinned-right">
+              <div class="db-pinned-right-content">
+                <div class="db-pinned-type-row">
+                  <BaseBadge :color="props.typeColorByType[pinnedEvent.type] ?? 'var(--color-text-tertiary)'">
+                    {{ props.typeLabelByType[pinnedEvent.type] ?? pinnedEvent.type }}
+                  </BaseBadge>
+                  <span
+                    v-if="pinnedEvent.type !== 'idea'"
+                    class="db-pinned-status"
+                  >
+                    {{ statusLabelByStatus[pinnedDisplayStatus(pinnedEvent)] ?? pinnedDisplayStatus(pinnedEvent) }}
+                  </span>
+                  <ToggleCompleteButton
+                    v-if="pinnedEvent.type !== 'idea'"
+                    :event="pinnedEvent"
+                    class="db-pinned-toggle"
+                  />
+                </div>
+                <div class="db-pinned-time">
+                  {{ pinnedDateText(pinnedEvent) }} · {{ pinnedTimeText(pinnedEvent) }}
+                </div>
+                <div v-if="pinnedEvent.type === 'deadline'" class="db-pinned-extra">
+                  优先级：{{ priorityLabelByPriority[pinnedEvent.priority] ?? pinnedEvent.priority }}
+                </div>
+                <p v-if="pinnedBodyText(pinnedEvent)" class="db-pinned-desc">{{ pinnedBodyText(pinnedEvent) }}</p>
+                <div v-if="pinnedEvent.tags.length" class="db-pinned-tags">
+                  <span v-for="tag in pinnedEvent.tags" :key="tag" class="db-pinned-tag">#{{ tag }}</span>
+                </div>
               </div>
             </div>
-            <div v-else class="db-pinned-right-empty">—</div>
           </div>
+        </template>
+
+        <div v-if="pinnedEvents.length === 0" class="db-pinned-empty">暂无固定事件</div>
+
+        <!-- 统一操作区：所有卡片下方，新增固定事件入口（不属于任何单张卡片） -->
+        <div class="db-pinned-footer">
+          <button
+            class="db-pinned-select"
+            type="button"
+            @click="pinnedPickerVisible = true"
+          >
+            选择事件
+          </button>
         </div>
       </div>
 
@@ -914,7 +923,8 @@ function onDragStart(widgetId: DashboardWidgetId, event: PointerEvent): void {
   min-height: 0;
   flex: 1;
   display: flex;
-  align-items: stretch;
+  flex-direction: column;
+  gap: 8px;
   padding: 4px 12px 12px;
 }
 /* —— 左右结构卡片：左列宽由内容自适应，分割线随其右端定位（不写死比例）—— */
@@ -924,6 +934,7 @@ function onDragStart(widgetId: DashboardWidgetId, event: PointerEvent): void {
   gap: 0;
   width: 100%;
   min-width: 0;
+  flex: 1;
   padding: 12px;
   border: 1px solid var(--surface-border);
   border-radius: calc(var(--surface-radius) - 2px);
@@ -1041,10 +1052,6 @@ function onDragStart(widgetId: DashboardWidgetId, event: PointerEvent): void {
   color: var(--color-text-secondary);
   font-weight: var(--font-medium);
 }
-.db-pinned-right-empty {
-  color: var(--color-text-tertiary);
-  font-size: 11px;
-}
 .db-pinned-unpin,
 .db-pinned-select {
   min-height: 25px;
@@ -1068,11 +1075,18 @@ function onDragStart(widgetId: DashboardWidgetId, event: PointerEvent): void {
   color: var(--color-text-tertiary);
   font-size: 11px;
 }
-.db-pinned-controls {
+/* —— 卡片下方统一操作区：新增固定事件入口。
+   右端与卡片内缩（12px）对齐，使「选择事件」按钮与卡片右列内容（含已完成切换按钮）右端齐平。 */
+.db-pinned-footer {
   display: flex;
-  align-items: center;
+  justify-content: flex-end;
   flex-wrap: wrap;
   gap: 6px;
+  padding-right: 12px;
+}
+/* —— 完成状态切换按钮：贴在类型/状态行的最右侧 —— */
+.db-pinned-toggle {
+  margin-left: auto;
 }
 .db-pinned-picker {
   position: absolute;
